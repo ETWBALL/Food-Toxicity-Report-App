@@ -1,0 +1,236 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql" 
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             Int              @id @default(autoincrement())
+  publicId       String           @unique
+  name           String
+  email          String           @unique
+  passwordHash   String
+  country        String?
+  avatarUrl      String?
+  createdAt      DateTime         @default(now())
+  age            Int?
+
+  // Relations
+  scanHistory    ScanHistory[]
+  medications    UserMedication[]
+  allergies      UserAllergy[]
+  conditions     UserCondition[]
+  notifications  Notification[]
+  safetyReports  SafetyReport[]
+
+  @@map("users")
+}
+
+model Product {
+  id               Int              @id @default(autoincrement())
+  name             String
+  description      String?
+  servingSize      String?
+  countryOfOrigin  String?
+  brand            String?          // who makes it
+  manufacturer     String?          // who manufactures it
+  barcodeNumber    String?          @unique
+  ingredientList   String?
+  nutritionalInfo  String?
+  imageUrl         String?
+  type             String?          // Drugs, food, supplement
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  scanHistory      ScanHistory[]
+  recalls          Recall[]
+  safetyReports    SafetyReport[]
+  notifications    Notification[]
+
+  @@map("products")
+}
+
+model ScanHistory {
+  id            Int              @id @default(autoincrement())
+  userId        Int
+  productId     Int
+  scannedAt     DateTime         @default(now())
+  safetyScore   Int?             // 1-100, unique to the user
+  createdAt     DateTime         @default(now())
+
+  // Relations
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product       Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  safetyReports SafetyReport[]
+
+  @@map("scan_history")
+}
+
+model Recall {
+  id                   Int              @id @default(autoincrement())
+  productId            Int
+  recallReason         String
+  recallDescription    String?          // longer explanation
+  severityLevel        String?          // class I, II, III (FDA)
+  recallDate           DateTime?
+  recallExpiryDate     DateTime?        // still ongoing or closed
+  isActive             Boolean          @default(true)
+
+  // who issued it
+  issuingAuthority     String?
+  officialRecallUrl    String?          // Link to FDA recall page
+  recallNumber         String?          // FDA assigns official recall numbers
+  affectedBatchNumbers String?          // specific lot/batch codes affected
+  affectedUpcCodes     String?          // specific barcodes affected
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  // Relations
+  product              Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  notifications        Notification[]
+
+  @@map("recalls")
+}
+
+model UserMedication {
+  id             Int              @id @default(autoincrement())
+  userId         Int
+  medicationName String           // e.g., "Metformin"
+  dosage         String?
+  frequency      String?          // e.g., once daily, twice daily
+  addedAt        DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  // Relations
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_medications")
+}
+
+model UserAllergy {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  allergen  String   // e.g., "peanuts"
+  severity  String?  // mild, moderate, severe
+  addedAt   DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_allergies")
+}
+
+model UserCondition {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  conditionName String    // e.g., "Type 2 Diabetes"
+  diagnosedAt   DateTime?
+  addedAt       DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_conditions")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int      // who receives it
+
+  // what happened
+  type      String   // "recall", "drugInteraction"
+  message   String   // "Peanut Butter X has been recalled"
+
+  // what it's about
+  productId Int?
+  recallId  Int?
+
+  // status
+  isRead    Boolean  @default(false) // has user seen it
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  recall    Recall?  @relation(fields: [recallId], references: [id], onDelete: SetNull)
+
+  @@map("notifications")
+}
+
+model SafetyReport {
+  id                   Int          @id @default(autoincrement())
+  scanId               Int?
+  userId               Int
+  productId            Int
+
+  // General info in the header
+  overallScore         Int?
+  reportDate           DateTime     @default(now()) // when was the report generated
+
+  // Scores breakdown
+  allergenScore        Int?
+  toxicityScore        Int?         // Fixed typo from 'toxicityScoree'
+  recallScore          Int?
+  drugInteractionScore Int?
+  adverseEventScore    Int?         // Based on FDA CAERS data
+
+  // Reactions - symptoms
+  knownReactions       String?      // vomiting, diarrhoea
+  potentialHarms       String?      // AI generated harm summary
+
+  // FLAGS - what triggered warnings
+  allergenFlags        String?      // which allergens matched user profile
+  drugFlags            String?      // drug interactions found
+  toxicityFlags        String?      // toxic ingredients found
+
+  // OUTCOMES - how serious
+  severityLevel        String?      // mild, moderate, severe, critical
+  isPersonalized       Boolean      @default(false) // was this scored against a user profile
+
+  // FDA adverse event data
+  fdaReportCount       Int?         // how many adverse events reported for this product
+  fdaReactionSummary   String?      // most common reactions from CAERS database
+
+  nutritionalScore     Int?         // 0-100
+  calories             Int?
+  sugarLevel           String?      // low, moderate, high
+  sodiumLevel          String?      // low, moderate, high
+  saturatedFatLevel    String?      // low, moderate, high
+  proteinLevel         String?      // low, moderate, high
+  fiberLevel           String?      // low, moderate, high
+
+  nutritionalFlags     String?      // "high sugar - risk for diabetics"
+  nutritionalSummary   String?      // AI generated plain english summary
+  dailyValueWarnings   String?      // exceeds recommended daily intake for X, Y
+
+  // personalized against user conditions
+  conditionFlags       String?
+  aiAnalysisSummary    String?
+
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  // Relations
+  scan                 ScanHistory? @relation(fields: [scanId], references: [id], onDelete: SetNull)
+  user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product              Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("safety_reports")
+}
