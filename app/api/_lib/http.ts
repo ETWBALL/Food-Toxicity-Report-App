@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { ZodIssue } from 'zod';
 
 export function ok(data: unknown, status = 200) {
   return NextResponse.json(data, { status });
@@ -6,6 +7,10 @@ export function ok(data: unknown, status = 200) {
 
 export function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
+}
+
+export function validationError(issues: ZodIssue[]) {
+  return NextResponse.json({ error: 'Validation failed', issues }, { status: 400 });
 }
 
 export function notFound(message: string) {
