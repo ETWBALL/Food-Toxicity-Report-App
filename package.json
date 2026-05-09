@@ -5,9 +5,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:prod": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "db:reset": "prisma migrate reset",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "db:status": "prisma migrate status",
+    "db:format": "prisma format"
+
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -17,12 +24,14 @@
     "bcrypt-ts": "^5.0.0",
     "drizzle-orm": "^0.29.2",
     "geist": "^1.2.0",
+    "jose": "^6.2.3",
     "next": "^14.0.4",
     "next-auth": "5.0.0-beta.4",
     "postgres": "^3.4.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-qr-barcode-scanner": "^2.1.25"
+    "react-qr-barcode-scanner": "^2.1.25",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.16",

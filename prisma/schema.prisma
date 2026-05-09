@@ -5,8 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -24,6 +23,9 @@ model User {
   avatarUrl      String?
   createdAt      DateTime         @default(now())
   age            Int?
+  deletedAt      DateTime?
+  /// Increment to invalidate all outstanding JWT refresh/access families (logout).
+  tokenVersion   Int              @default(0)
 
   // Relations
   scanHistory    ScanHistory[]
