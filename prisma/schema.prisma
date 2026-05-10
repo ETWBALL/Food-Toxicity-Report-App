@@ -26,36 +26,38 @@ model User {
   allergies     UserAllergy[]
   conditions    UserCondition[]
   medications   UserMedication[]
+  chatSessions  ChatSession[]
+  memories      UserMemory[]
 
   @@map("users")
 }
 
 model Product {
-  id               Int              @id @default(autoincrement())
-  name             String
-  description      String?
-  servingSize      String?
-  countryOfOrigin  String?
-  brand            String?          // who makes it
-  manufacturer     String?          // who manufactures it
-  barcodeNumber    String?          @unique
-  ingredientList   String?
-  nutritionalInfo  String?
-  imageUrl         String?
-  type             String?          // Drugs, food, supplement
+  id                       Int       @id @default(autoincrement())
+  name                     String
+  description              String?
+  servingSize              String?
+  countryOfOrigin          String?
+  brand                    String? // who makes it
+  manufacturer             String? // who manufactures it
+  barcodeNumber            String?   @unique
+  ingredientList           String?
+  nutritionalInfo          String?
+  imageUrl                 String?
+  type                     String? // Drugs, food, supplement
   /// Last successful external barcode→product resolution (Go-UPC, Barcode Lookup, OFF, etc.)
   lastExternalResolutionAt DateTime?
   /// e.g. upc-database | rapid-barcode | openfoodfacts | merged
-  externalResolutionSource  String?
+  externalResolutionSource String?
 
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  scanHistory      ScanHistory[]
-  recalls          Recall[]
-  safetyReports    SafetyReport[]
-  notifications    Notification[]
+  scanHistory   ScanHistory[]
+  recalls       Recall[]
+  safetyReports SafetyReport[]
+  notifications Notification[]
 
   @@map("products")
 }
@@ -202,4 +204,48 @@ model SafetyReport {
   user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("reports")
+}
+
+/// Chatbot conversation. A user can have many sessions; not pinned to a
+/// specific report (the focus reports are passed per-message via URL/body).
+model ChatSession {
+  id        Int           @id @default(autoincrement())
+  userId    Int           @map("user_id")
+  /// Auto-summarized title from the first user message (nullable for empty sessions).
+  title     String?
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@index([userId, updatedAt])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        Int         @id @default(autoincrement())
+  sessionId Int         @map("session_id")
+  /// 'user' | 'assistant' | 'system' — kept as string for forward compat.
+  role      String
+  content   String
+  createdAt DateTime    @default(now()) @map("created_at")
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("chat_messages")
+}
+
+/// DIY user-memory layer. Populated by post-message extraction; consumed by
+/// the chat prompt builder (keyword retrieval in v1, semantic in v2).
+model UserMemory {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  /// 'preference' | 'observation' | 'feedback'
+  kind      String
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("user_memories")
 }
