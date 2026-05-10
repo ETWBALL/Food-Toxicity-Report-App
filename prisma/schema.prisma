@@ -31,25 +31,31 @@ model User {
 }
 
 model Product {
-  id              Int            @id @default(autoincrement())
-  name            String?
-  description     String?
-  servingSize     String?        @map("serving_size")
-  countryOfOrigin String?        @map("country_of_origin")
-  brand           String?
-  manufacturer    String?
-  barcodeNumber   String?        @unique @map("barcode")
-  ingredientList  String?        @map("ingredients")
-  nutritionalInfo Json?          @map("nutritional_info")
-  imageUrl        String?        @map("image_url")
-  type            String?
-  fda             Boolean        @default(false)
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
-  notifications   Notification[]
-  recalls         Recall[]
-  safetyReports   SafetyReport[]
-  scanHistory     ScanHistory[]
+  id               Int              @id @default(autoincrement())
+  name             String
+  description      String?
+  servingSize      String?
+  countryOfOrigin  String?
+  brand            String?          // who makes it
+  manufacturer     String?          // who manufactures it
+  barcodeNumber    String?          @unique
+  ingredientList   String?
+  nutritionalInfo  String?
+  imageUrl         String?
+  type             String?          // Drugs, food, supplement
+  /// Last successful external barcode→product resolution (Go-UPC, Barcode Lookup, OFF, etc.)
+  lastExternalResolutionAt DateTime?
+  /// e.g. upc-database | rapid-barcode | openfoodfacts | merged
+  externalResolutionSource  String?
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  scanHistory      ScanHistory[]
+  recalls          Recall[]
+  safetyReports    SafetyReport[]
+  notifications    Notification[]
 
   @@map("products")
 }
