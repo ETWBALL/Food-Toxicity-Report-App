@@ -1,3 +1,10 @@
+/**
+ * GET /api/products/:id — Public read of one product by numeric id. `200` product JSON; `400` bad id; `404` missing.
+ *
+ * PUT /api/products/:id — Same auth as POST /api/products (`INTERNAL_API_KEY` Bearer or session). Body is partial update (strict schema); `barcodeNumber` cannot be changed here.
+ *
+ * Success `200` updated product; `404` not found; `401`/`400` as applicable.
+ */
 import { z } from 'zod';
 import { gateCatalogWrite } from '@/lib/auth/gate-catalog-write';
 import { prisma } from '@/lib/prisma';

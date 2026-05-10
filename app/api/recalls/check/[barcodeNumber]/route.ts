@@ -1,3 +1,11 @@
+/**
+ * POST /api/recalls/check/:barcodeNumber
+ *
+ * Checks active recalls for a barcode: matches `productId` when the barcode exists in `products`, and substring match on `affectedUpcCodes`.
+ *
+ * No auth required. Success `200`:
+ * `{ barcodeNumber, hasRecall, worstSeverity, activeRecallCount, recalls }`.
+ */
 import { prisma } from '@/lib/prisma';
 import { ok } from '../../../_lib/http';
 import { worstSeverity } from '../../../_lib/score';

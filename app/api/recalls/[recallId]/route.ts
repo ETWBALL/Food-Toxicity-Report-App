@@ -1,3 +1,8 @@
+/**
+ * GET /api/recalls/:recallId
+ *
+ * Public single recall by numeric id. `200` row JSON; `400` invalid id; `404` not found.
+ */
 import { prisma } from '@/lib/prisma';
 import { badRequest, notFound, ok, parseId } from '../../_lib/http';
 

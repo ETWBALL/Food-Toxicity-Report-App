@@ -1,3 +1,10 @@
+/**
+ * GET /api/users/:id/scans/:scanId — Single scan with product + latest linked safety report (nested `report` fields).
+ *
+ * DELETE — Deletes the scan and associated safety reports in a transaction; `200` `{ success, scanId }`.
+ *
+ * Session required; `:id` must match caller. `400` invalid scan id, `404` not found / wrong owner.
+ */
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/proxy';

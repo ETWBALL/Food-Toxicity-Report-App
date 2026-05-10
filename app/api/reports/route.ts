@@ -1,3 +1,16 @@
+/**
+ * POST /api/reports
+ *
+ * Builds a full orchestrated safety report (news, barcode sources, Open Food Facts, openFDA, nutrition APIs, etc.) and persists `SafetyReport`. Requires session.
+ *
+ * Body (one of): `{ "barcode": string, "scanId"?: number }` OR `{ "productName": string, "scanId"?: number }`.
+ *
+ * Query: `debug=1` includes orchestrator `meta` in the response.
+ *
+ * Success `201`: `{ success, report, summary: { newsArticles, openfda* counts }, meta? }`.
+ *
+ * Errors: `400` validation / bad `scanId`, `404` user, `500` pipeline failure message.
+ */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth/proxy';

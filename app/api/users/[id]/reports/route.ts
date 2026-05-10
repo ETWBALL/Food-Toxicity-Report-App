@@ -1,3 +1,12 @@
+/**
+ * GET /api/users/:id/reports
+ *
+ * Lists the caller’s safety reports (up to 100, newest first). Requires session; `:id` must match the caller (numeric id or `publicId`).
+ *
+ * Success `200`: JSON array of full report objects (via `fullSafetyReportJson`).
+ *
+ * Errors: `401` unauthenticated, `403` user ref mismatch.
+ */
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/proxy';

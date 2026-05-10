@@ -1,3 +1,14 @@
+/**
+ * POST /api/auth/refresh
+ *
+ * Rotates the session using a refresh token (from httpOnly cookie or body).
+ *
+ * Body (optional JSON): `{ "refreshToken"?: string }` — if omitted, uses `refresh` from cookies (`readTokensFromRequest`).
+ *
+ * Success `200`: `{ ok: true, accessToken, refreshToken, user }` + updated cookies.
+ *
+ * Errors: `401` missing refresh token or invalid/expired token.
+ */
 import { NextResponse } from 'next/server';
 import { applyAuthCookies, readTokensFromRequest } from '@/lib/auth/cookies';
 import { rotateSessionFromRefreshToken } from '@/lib/auth/session';

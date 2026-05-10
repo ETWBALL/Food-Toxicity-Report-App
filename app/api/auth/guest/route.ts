@@ -1,3 +1,12 @@
+/**
+ * POST /api/auth/guest
+ *
+ * Creates an ephemeral guest user (unique `@guest.local` email), issues JWTs, and sets cookies — no request body.
+ *
+ * Success `201`: `{ success: true, guest: true, accessToken, refreshToken, user }`
+ *
+ * Use this for try-before-register flows; guest rows are normal `User` records in the database.
+ */
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { applyAuthCookies } from '@/lib/auth/cookies';

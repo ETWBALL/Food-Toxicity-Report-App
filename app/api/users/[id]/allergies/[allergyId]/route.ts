@@ -1,3 +1,10 @@
+/**
+ * DELETE /api/users/:id/allergies/:allergyId
+ *
+ * Deletes one allergy row owned by the caller. `:allergyId` must be a positive integer string.
+ *
+ * Success `200`: `{ success: true }`. `404` if no row deleted. `400` bad id. `403` user mismatch.
+ */
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { parseUserRef, refMatchesCaller } from '@/lib/auth/user-ref';

@@ -1,3 +1,12 @@
+/**
+ * GET /api/products/barcode/:barcodeNumber
+ *
+ * Resolves product by barcode: returns DB cache if present, otherwise fetches Open Food Facts and upserts.
+ *
+ * Success `200`: product fields + `{ source: 'cache' | 'openfoodfacts' }`.
+ *
+ * `404` if OFF has no match (`product not in catalog`).
+ */
 import { prisma } from '@/lib/prisma';
 import { notFound, ok } from '../../../_lib/http';
 import { fetchProductByBarcode, mapOffToProduct } from '../../../_lib/openfoodfacts';

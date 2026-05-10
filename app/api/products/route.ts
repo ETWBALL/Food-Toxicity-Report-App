@@ -1,3 +1,16 @@
+/**
+ * POST /api/products
+ *
+ * Upserts a catalog product by `barcodeNumber` (idempotent create/update).
+ *
+ * Auth: if `INTERNAL_API_KEY` is set, send `Authorization: Bearer <INTERNAL_API_KEY>`; otherwise a logged-in session is required (`gateCatalogWrite`).
+ *
+ * Body: `{ barcodeNumber, name, brand?, description?, ... }` — see `PostProductSchema`. `nutritionalInfo` may be string or object (serialized to JSON string).
+ *
+ * Success `201`: created/updated `product` row (wrapped via `ok`).
+ *
+ * Errors: `401` unauthorized, `400` validation.
+ */
 import { z } from 'zod';
 import { gateCatalogWrite } from '@/lib/auth/gate-catalog-write';
 import { prisma } from '@/lib/prisma';

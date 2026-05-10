@@ -1,3 +1,10 @@
+/**
+ * GET /api/users/:id/medications — list `{ id, medicationName, name, dosage, frequency }[]`.
+ *
+ * POST — body `{ medicationName, name?, dosage?, frequency? }` (strict). `201` with created row.
+ *
+ * Session required; `:id` must match caller (`401`/`403`).
+ */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';

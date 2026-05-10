@@ -1,3 +1,14 @@
+/**
+ * POST /api/auth/register
+ *
+ * Creates a new account with email + strong password, issues JWTs, and sets auth cookies.
+ *
+ * Body (JSON): `{ "email", "password", "confirmPassword", "name"? }` — see `registerBodySchema` (password strength rules apply).
+ *
+ * Success `201`: `{ success: true, accessToken, refreshToken, user }`
+ *
+ * Errors: `400` validation / mismatched passwords / email already registered / invalid JSON.
+ */
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { applyAuthCookies } from '@/lib/auth/cookies';

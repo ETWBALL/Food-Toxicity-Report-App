@@ -1,3 +1,14 @@
+/**
+ * POST /api/auth/logout
+ *
+ * Increments the caller’s `tokenVersion` (invalidates refresh/access families), clears auth cookies, and redirects.
+ *
+ * Body (optional JSON): `{ "redirect"?: string }` — path only; open redirects are rejected by `safeAppRedirectPath` (defaults to `/`).
+ *
+ * Success: `302` redirect to the safe path with cookies cleared.
+ *
+ * Works best when the browser sends the session cookie; unauthenticated calls still clear cookies.
+ */
 import { NextResponse } from 'next/server';
 import { clearAuthCookies } from '@/lib/auth/cookies';
 import { resolveUserIdForLogout } from '@/lib/auth/logout';

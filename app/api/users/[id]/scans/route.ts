@@ -1,3 +1,18 @@
+/**
+ * GET /api/users/:id/scans — Paginated scan history for the caller.
+ *
+ * Query: `limit` (default 20, max 100), `offset` (default 0).
+ *
+ * Success `200`: `{ total, limit, offset, scans: [{ id, productId, productName, productImage, safetyScore, verdict, scannedAt }] }`.
+ *
+ * POST /api/users/:id/scans — Record a barcode scan: resolves product (cache → Open Food Facts → upsert), loads recalls, allergies, meds, computes score/verdict, writes `scan_history` + `safety_report`, returns AI summary.
+ *
+ * Body: `{ "barcodeNumber": string }`.
+ *
+ * Success `201`: `{ scanId, productId, product, safetyScore, verdict, recallActive, recallSeverity, allergyFlags, drugFlags, summary, officialRecallUrl, scannedAt, isPersonalized }`.
+ *
+ * Errors: `401`, `403`, `400`, `404` PRODUCT_NOT_IN_CATALOG when barcode unknown.
+ */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
