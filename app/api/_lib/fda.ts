@@ -1,3 +1,4 @@
+// Reserved for Scans orchestration steps 5-6 (drug labels + FAERS) in PR #2.
 const FDA_BASE = 'https://api.fda.gov';
 const FDA_KEY = process.env.OPENFDA_API_KEY;
 

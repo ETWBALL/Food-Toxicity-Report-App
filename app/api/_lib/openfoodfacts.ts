@@ -30,7 +30,10 @@ async function fetchWithBackoff(url: string, attempts = 3): Promise<Response> {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+      const res = await fetch(url, {
+        headers: { 'User-Agent': USER_AGENT },
+        signal: AbortSignal.timeout(8_000),
+      });
       if (res.status !== 503) return res;
     } catch (err) {
       lastErr = err;

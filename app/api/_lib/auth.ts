@@ -1,3 +1,5 @@
+// Reserved for Scans orchestration (POST /api/users/:id/scans) in PR #2.
+// Products + Recalls in PR #1 do not require user-scoped auth.
 import { NextResponse } from 'next/server';
 import { auth } from '../../auth';
 

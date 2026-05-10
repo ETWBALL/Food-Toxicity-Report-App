@@ -1,3 +1,5 @@
+// Reserved for Scans orchestration step 8 (AI summary) in PR #2.
+// Falls back to deterministicSummary when teammate's /api/analysis/generate is down.
 type ScanContext = {
   productName: string | null;
   score: number;
