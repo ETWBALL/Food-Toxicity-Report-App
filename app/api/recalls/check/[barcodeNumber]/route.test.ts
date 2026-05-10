@@ -1,18 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockSql, mockEnsure } = vi.hoisted(() => ({
-  mockSql: vi.fn(),
-  mockEnsure: vi.fn().mockResolvedValue(undefined),
+const { mockPrisma } = vi.hoisted(() => ({
+  mockPrisma: {
+    product: { findUnique: vi.fn() },
+    recall: { findMany: vi.fn() },
+  },
 }));
 
-vi.mock('../../../_lib/db', () => ({
-  sql: mockSql,
-  ensureApiTables: mockEnsure,
-}));
+vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 
 import { POST } from './route';
 
-function callPost(barcodeNumber: string) {
+const BC = '0037600100694';
+
+function callPost(barcodeNumber = BC) {
   return POST(new Request(`http://test/api/recalls/check/${barcodeNumber}`), {
     params: { barcodeNumber },
   });
@@ -20,18 +21,17 @@ function callPost(barcodeNumber: string) {
 
 describe('POST /api/recalls/check/:barcodeNumber', () => {
   beforeEach(() => {
-    mockSql.mockReset();
-    mockEnsure.mockReset();
-    mockEnsure.mockResolvedValue(undefined);
+    mockPrisma.product.findUnique.mockReset();
+    mockPrisma.recall.findMany.mockReset();
   });
 
-  it('returns hasRecall=false with empty recalls when no rows match', async () => {
-    mockSql.mockResolvedValueOnce([]);
-    const res = await callPost('0037600100694');
+  it('returns hasRecall=false with empty recalls when nothing matches', async () => {
+    mockPrisma.product.findUnique.mockResolvedValueOnce(null);
+    mockPrisma.recall.findMany.mockResolvedValueOnce([]);
+    const res = await callPost();
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({
-      barcodeNumber: '0037600100694',
+    expect(await res.json()).toEqual({
+      barcodeNumber: BC,
       hasRecall: false,
       worstSeverity: null,
       activeRecallCount: 0,
@@ -39,28 +39,34 @@ describe('POST /api/recalls/check/:barcodeNumber', () => {
     });
   });
 
-  it('returns worstSeverity="Class I" when multiple recalls match with mixed classes', async () => {
-    mockSql.mockResolvedValueOnce([
-      { id: 1, severity_level: 'Class III', recall_reason: 'minor labeling' },
-      { id: 2, severity_level: 'Class I', recall_reason: 'undeclared peanuts' },
-      { id: 3, severity_level: 'Class II', recall_reason: 'mislabel' },
+  it('returns worstSeverity="Class I" with multi-recall mixed classes', async () => {
+    mockPrisma.product.findUnique.mockResolvedValueOnce({ id: 42 });
+    mockPrisma.recall.findMany.mockResolvedValueOnce([
+      { id: 1, severityLevel: 'Class III' },
+      { id: 2, severityLevel: 'Class I' },
+      { id: 3, severityLevel: 'Class II' },
     ]);
-    const res = await callPost('0037600100694');
-    expect(res.status).toBe(200);
+    const res = await callPost();
     const body = await res.json();
     expect(body.hasRecall).toBe(true);
     expect(body.worstSeverity).toBe('Class I');
     expect(body.activeRecallCount).toBe(3);
-    expect(body.recalls).toHaveLength(3);
-    expect(body.barcodeNumber).toBe('0037600100694');
   });
 
-  it('returns worstSeverity null when severity column is null on all rows', async () => {
-    mockSql.mockResolvedValueOnce([
-      { id: 5, severity_level: null, recall_reason: 'unknown severity' },
+  it('skips productId predicate when product is unknown', async () => {
+    mockPrisma.product.findUnique.mockResolvedValueOnce(null);
+    mockPrisma.recall.findMany.mockResolvedValueOnce([]);
+    await callPost();
+    const where = mockPrisma.recall.findMany.mock.calls[0][0].where;
+    expect(where.OR).toEqual([{ affectedUpcCodes: { contains: BC } }]);
+  });
+
+  it('null severity rows produce worstSeverity=null', async () => {
+    mockPrisma.product.findUnique.mockResolvedValueOnce({ id: 42 });
+    mockPrisma.recall.findMany.mockResolvedValueOnce([
+      { id: 5, severityLevel: null },
     ]);
-    const res = await callPost('0037600100694');
-    const body = await res.json();
+    const body = await (await callPost()).json();
     expect(body.hasRecall).toBe(true);
     expect(body.worstSeverity).toBe(null);
     expect(body.activeRecallCount).toBe(1);

@@ -52,24 +52,25 @@ export async function fetchProductByBarcode(barcode: string): Promise<OffProduct
   return json.product ?? null;
 }
 
-export type ProductRowInsert = {
-  barcode: string;
-  name: string | null;
+/** Shape matches Prisma Product model (camelCase). `name` is required by the schema; falls back to "Unknown product" when OFF omits it. */
+export type ProductUpsertInput = {
+  barcodeNumber: string;
+  name: string;
   brand: string | null;
   type: string | null;
-  ingredients: string | null;
-  nutritional_info: string | null;
-  image_url: string | null;
+  ingredientList: string | null;
+  nutritionalInfo: string | null;
+  imageUrl: string | null;
 };
 
-export function mapOffToProductRow(barcode: string, off: OffProduct): ProductRowInsert {
+export function mapOffToProduct(barcode: string, off: OffProduct): ProductUpsertInput {
   return {
-    barcode,
-    name: off.product_name?.trim() || null,
+    barcodeNumber: barcode,
+    name: off.product_name?.trim() || 'Unknown product',
     brand: off.brands?.trim() || null,
     type: off.categories_tags?.[0]?.replace(/^en:/, '') || null,
-    ingredients: off.ingredients_text?.trim() || null,
-    nutritional_info: off.nutriments ? JSON.stringify(off.nutriments) : null,
-    image_url: off.image_front_url || null,
+    ingredientList: off.ingredients_text?.trim() || null,
+    nutritionalInfo: off.nutriments ? JSON.stringify(off.nutriments) : null,
+    imageUrl: off.image_front_url || null,
   };
 }
