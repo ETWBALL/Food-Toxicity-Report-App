@@ -148,5 +148,9 @@ export async function ensureApiTables() {
     );
   `;
 
+  await sql`ALTER TABLE recalls ADD COLUMN IF NOT EXISTS recall_number VARCHAR(128)`;
+  await sql`ALTER TABLE recalls ADD COLUMN IF NOT EXISTS affected_upc_codes TEXT[]`;
+  await sql`ALTER TABLE recalls ADD COLUMN IF NOT EXISTS official_recall_url TEXT`;
+
   initialized = true;
 }

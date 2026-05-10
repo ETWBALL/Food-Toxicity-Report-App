@@ -1,14 +1,35 @@
-import { ensureApiTables, sql } from '../../../_lib/db';
+import { prisma } from '@/lib/prisma';
 import { badRequest, ok, parseId } from '../../../_lib/http';
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
-  await ensureApiTables();
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   const productId = parseId(params.id);
   if (!productId) return badRequest('invalid product id');
-  const rows = await sql`
-    SELECT * FROM recalls
-    WHERE product_id = ${productId}
-    ORDER BY recall_date DESC NULLS LAST, id DESC
-  `;
-  return ok(rows);
+
+  const u = new URL(req.url);
+  const activeOnly = u.searchParams.get('activeOnly') !== 'false';
+
+  // Fetch product first to know barcodeNumber for affectedUpcCodes substring match.
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { barcodeNumber: true },
+  });
+  const barcode = product?.barcodeNumber ?? null;
+
+  // affectedUpcCodes is TEXT (per Prisma migration), not TEXT[]. Use substring match.
+  const recalls = await prisma.recall.findMany({
+    where: {
+      ...(activeOnly ? { isActive: true } : {}),
+      OR: [
+        { productId },
+        ...(barcode ? [{ affectedUpcCodes: { contains: barcode } }] : []),
+      ],
+    },
+    orderBy: [{ recallDate: 'desc' }, { id: 'desc' }],
+  });
+
+  const activeRecalls = recalls.filter((r) => r.isActive).length;
+
+  return ok({ productId, activeRecalls, recalls });
 }
