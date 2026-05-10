@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockSql, mockEnsure } = vi.hoisted(() => ({
-  mockSql: vi.fn(),
-  mockEnsure: vi.fn().mockResolvedValue(undefined),
+const { mockPrisma } = vi.hoisted(() => ({
+  mockPrisma: {
+    recall: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
+  },
 }));
 
-vi.mock('../_lib/db', () => ({
-  sql: mockSql,
-  ensureApiTables: mockEnsure,
-}));
+vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
 
 import { GET } from './route';
 
@@ -18,18 +19,16 @@ function callGet(qs = '') {
 
 describe('GET /api/recalls', () => {
   beforeEach(() => {
-    mockSql.mockReset();
-    mockEnsure.mockReset();
-    mockEnsure.mockResolvedValue(undefined);
+    mockPrisma.recall.findMany.mockReset();
+    mockPrisma.recall.count.mockReset();
   });
 
   it('returns wrapped {total, limit, offset, recalls} with default pagination', async () => {
-    mockSql
-      .mockResolvedValueOnce([
-        { id: 1, severity_level: 'Class I' },
-        { id: 2, severity_level: 'Class II' },
-      ]) // rows
-      .mockResolvedValueOnce([{ count: 47 }]); // count
+    mockPrisma.recall.findMany.mockResolvedValueOnce([
+      { id: 1, severityLevel: 'Class I' },
+      { id: 2, severityLevel: 'Class II' },
+    ]);
+    mockPrisma.recall.count.mockResolvedValueOnce(47);
 
     const res = await callGet();
     expect(res.status).toBe(200);
@@ -39,14 +38,15 @@ describe('GET /api/recalls', () => {
       limit: 50,
       offset: 0,
       recalls: [
-        { id: 1, severity_level: 'Class I' },
-        { id: 2, severity_level: 'Class II' },
+        { id: 1, severityLevel: 'Class I' },
+        { id: 2, severityLevel: 'Class II' },
       ],
     });
   });
 
   it('respects custom limit and offset', async () => {
-    mockSql.mockResolvedValueOnce([]).mockResolvedValueOnce([{ count: 0 }]);
+    mockPrisma.recall.findMany.mockResolvedValueOnce([]);
+    mockPrisma.recall.count.mockResolvedValueOnce(0);
     const res = await callGet('limit=10&offset=20');
     const body = await res.json();
     expect(body.limit).toBe(10);
@@ -54,22 +54,36 @@ describe('GET /api/recalls', () => {
   });
 
   it('clamps limit above 200 to 200', async () => {
-    mockSql.mockResolvedValueOnce([]).mockResolvedValueOnce([{ count: 0 }]);
+    mockPrisma.recall.findMany.mockResolvedValueOnce([]);
+    mockPrisma.recall.count.mockResolvedValueOnce(0);
     const res = await callGet('limit=9999');
-    const body = await res.json();
-    expect(body.limit).toBe(200);
+    expect((await res.json()).limit).toBe(200);
   });
 
   it('clamps negative offset to 0', async () => {
-    mockSql.mockResolvedValueOnce([]).mockResolvedValueOnce([{ count: 0 }]);
+    mockPrisma.recall.findMany.mockResolvedValueOnce([]);
+    mockPrisma.recall.count.mockResolvedValueOnce(0);
     const res = await callGet('offset=-5');
-    const body = await res.json();
-    expect(body.offset).toBe(0);
+    expect((await res.json()).offset).toBe(0);
   });
 
-  it('makes exactly 2 sql calls (rows + count)', async () => {
-    mockSql.mockResolvedValueOnce([]).mockResolvedValueOnce([{ count: 0 }]);
-    await callGet('severity=Class+I&issuingAuthority=FDA&includeInactive=true');
-    expect(mockSql).toHaveBeenCalledTimes(2);
+  it('passes severity, issuingAuthority, and isActive filters to prisma', async () => {
+    mockPrisma.recall.findMany.mockResolvedValueOnce([]);
+    mockPrisma.recall.count.mockResolvedValueOnce(0);
+    await callGet('severity=Class+I&issuingAuthority=FDA');
+    const arg = mockPrisma.recall.findMany.mock.calls[0][0];
+    expect(arg.where).toEqual({
+      isActive: true,
+      severityLevel: 'Class I',
+      issuingAuthority: 'FDA',
+    });
+  });
+
+  it('drops isActive filter when includeInactive=true', async () => {
+    mockPrisma.recall.findMany.mockResolvedValueOnce([]);
+    mockPrisma.recall.count.mockResolvedValueOnce(0);
+    await callGet('includeInactive=true');
+    const arg = mockPrisma.recall.findMany.mock.calls[0][0];
+    expect(arg.where).toEqual({});
   });
 });
