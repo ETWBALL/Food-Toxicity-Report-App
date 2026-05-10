@@ -91,16 +91,29 @@ export function formatContextAsPromptPrefix(ctx: ChatContext): string {
   // --- Focus reports (full detail) ---
   if (ctx.focusReports.length) {
     parts.push('\n# Reports in focus (the user is currently looking at these)');
+    parts.push(
+      'Score legend: each sub-score is 0-100 where 100 = no concern in that dimension and 0 = maximum concern. If the user asks why a score is high or low, explain it using the flags / counts below.',
+    );
     for (const r of ctx.focusReports) {
       const name = r.product?.name ?? 'Unknown product';
       const score = r.overallScore ?? r.score ?? '—';
       parts.push(`\n## ${name} (report id ${r.id})`);
-      parts.push(`- Score: ${score}/100`);
+      parts.push(`- Overall score: ${score}/100`);
       if (r.verdict) parts.push(`- Verdict: ${r.verdict}`);
       if (r.severityLevel) parts.push(`- Severity: ${r.severityLevel}`);
-      if (r.allergenFlags) parts.push(`- Allergen flags: ${r.allergenFlags}`);
-      if (r.drugFlags) parts.push(`- Drug interaction flags: ${r.drugFlags}`);
-      if (r.toxicityFlags) parts.push(`- Toxicity flags: ${r.toxicityFlags}`);
+      const subScores: Array<[string, number | null | undefined, string | null | undefined]> = [
+        ['Allergen', r.allergenScore, r.allergenFlags],
+        ['Toxicity', r.toxicityScore, r.toxicityFlags],
+        ['Recall', r.recallScore, null],
+        ['Drug interaction', r.drugInteractionScore, r.drugFlags],
+        ['Adverse event', r.adverseEventScore, r.fdaReactionSummary],
+        ['Nutrition', r.nutritionalScore, r.nutritionalFlags],
+      ];
+      for (const [label, val, flag] of subScores) {
+        if (val == null) continue;
+        const flagText = flag && flag.trim() ? ` — ${flag}` : '';
+        parts.push(`- ${label} score: ${val}/100${flagText}`);
+      }
       if (r.nutritionalSummary) parts.push(`- Nutritional summary: ${r.nutritionalSummary}`);
       if (r.aiAnalysisSummary) parts.push(`- AI analysis: ${r.aiAnalysisSummary}`);
       if (r.summary) parts.push(`- Summary: ${r.summary}`);
