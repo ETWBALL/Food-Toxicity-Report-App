@@ -1,11 +1,40 @@
-import { ensureApiTables, sql } from '../../_lib/db';
-import { badRequest, notFound, ok, parseId } from '../../_lib/http';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth/proxy';
+import {
+  buildSafetyReportResponse,
+  parseReportFieldsQuery,
+} from '@/lib/reports/safety-report-response';
+import { badRequest, notFound, parseId } from '../../_lib/http';
 
-export async function GET(_: Request, { params }: { params: { reportId: string } }) {
-  await ensureApiTables();
-  const reportId = parseId(params.reportId);
-  if (!reportId) return badRequest('invalid report id');
-  const rows = await sql`SELECT * FROM reports WHERE id = ${reportId}`;
-  if (!rows.length) return notFound('report not found');
-  return ok(rows[0]);
+export async function GET(req: Request, { params }: { params: { reportId: string } }) {
+  return requireAuth(req, async (caller) => {
+    const reportId = parseId(params.reportId);
+    if (!reportId) return badRequest('invalid report id');
+
+    const report = await prisma.safetyReport.findUnique({
+      where: { id: reportId },
+    });
+    if (!report) return notFound('report not found');
+    if (report.userId !== caller.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const parsed = parseReportFieldsQuery(searchParams.get('fields'));
+
+    if (parsed.mode === 'invalid') {
+      return NextResponse.json(
+        {
+          error: 'Invalid fields sections',
+          invalid: parsed.invalid,
+          allowedSections: parsed.allowed.sort(),
+        },
+        { status: 400 },
+      );
+    }
+
+    const body = buildSafetyReportResponse(report, parsed);
+    return NextResponse.json(body);
+  });
 }

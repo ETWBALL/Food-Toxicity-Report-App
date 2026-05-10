@@ -1,30 +1,75 @@
-import { ensureApiTables, sql } from '../_lib/db';
-import { badRequest, ok } from '../_lib/http';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireAuth } from '@/lib/auth/proxy';
+import { orchestrateSafetyReport } from '@/lib/reports/orchestrate-report';
+import { badRequest } from '../_lib/http';
 
-function verdictFromScore(score: number) {
-  if (score >= 80) return 'Safe';
-  if (score >= 50) return 'Caution';
-  return 'Unsafe';
-}
+const barcodeBody = z
+  .object({
+    barcode: z.string().min(4).max(40),
+    scanId: z.number().int().positive().optional(),
+  })
+  .strict();
+
+const nameBody = z
+  .object({
+    productName: z.string().min(2).max(200),
+    scanId: z.number().int().positive().optional(),
+  })
+  .strict();
+
+const bodySchema = z.union([barcodeBody, nameBody]);
 
 export async function POST(req: Request) {
-  await ensureApiTables();
-  const body = await req.json().catch(() => null);
-  if (!body?.userId || !body?.productId) return badRequest('userId and productId required');
-  const score = Number.isFinite(body.score) ? Number(body.score) : 70;
-  const verdict = body.verdict || verdictFromScore(score);
-  const report = await sql`
-    INSERT INTO reports (user_id, product_id, scan_id, score, verdict, potential_harms, summary)
-    VALUES (
-      ${body.userId},
-      ${body.productId},
-      ${body.scanId || null},
-      ${score},
-      ${verdict},
-      ${JSON.stringify(body.potentialHarms || [])}::jsonb,
-      ${body.summary || null}
-    )
-    RETURNING *
-  `;
-  return ok(report[0], 201);
+  return requireAuth(req, async (caller) => {
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return badRequest('Invalid JSON body');
+    }
+
+    const parsed = bodySchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Validation failed', issues: parsed.error.issues }, { status: 400 });
+    }
+
+    try {
+      const payload =
+        'barcode' in parsed.data
+          ? { userId: caller.id, barcode: parsed.data.barcode, scanId: parsed.data.scanId }
+          : { userId: caller.id, productName: parsed.data.productName, scanId: parsed.data.scanId };
+
+      const { report, meta } = await orchestrateSafetyReport(payload);
+
+      const url = new URL(req.url);
+      const debug = url.searchParams.get('debug') === '1';
+
+      return NextResponse.json(
+        {
+          success: true,
+          report,
+          summary: {
+            newsArticles: meta.newsCount,
+            openfdaFoodRecalls: meta.foodRecalls,
+            openfdaDrugRecalls: meta.drugRecalls,
+            openfdaDrugAdverseEvents: meta.drugAdverseEvents,
+            openfdaFoodAdverseEvents: meta.foodAdverseEvents,
+            openfdaAdverseEventsTotal: meta.adverseEvents,
+          },
+          ...(debug ? { meta } : {}),
+        },
+        { status: 201 },
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Report generation failed';
+      if (msg === 'User not found') {
+        return NextResponse.json({ error: msg }, { status: 404 });
+      }
+      if (msg.includes('Invalid scanId')) {
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  });
 }

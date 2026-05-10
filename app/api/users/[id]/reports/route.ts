@@ -1,15 +1,22 @@
-import { ensureApiTables, sql } from '../../../_lib/db';
-import { badRequest, ok, parseId } from '../../../_lib/http';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth/proxy';
+import { parseUserRef, refMatchesCaller } from '@/lib/auth/user-ref';
+import { fullSafetyReportJson } from '@/lib/reports/safety-report-response';
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
-  await ensureApiTables();
-  const userId = parseId(params.id);
-  if (!userId) return badRequest('invalid user id');
-  const rows = await sql`
-    SELECT * FROM reports
-    WHERE user_id = ${userId}
-    ORDER BY created_at DESC
-    LIMIT 100
-  `;
-  return ok(rows);
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  return requireAuth(req, async (caller) => {
+    const ref = parseUserRef(params.id);
+    if (!refMatchesCaller(ref, caller)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const reports = await prisma.safetyReport.findMany({
+      where: { userId: caller.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return NextResponse.json(reports.map((r) => fullSafetyReportJson(r)));
+  });
 }

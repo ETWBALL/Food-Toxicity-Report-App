@@ -2,24 +2,9 @@ import { NextResponse } from 'next/server';
 import { clearAuthCookies } from '@/lib/auth/cookies';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, serializeUser } from '@/lib/auth/proxy';
+import { parseUserRef, refMatchesCaller } from '@/lib/auth/user-ref';
 import { userUpdateSchema } from '@/lib/validation/user';
-import type { User } from '@prisma/client';
 import { badRequest, validationError } from '../../_lib/http';
-
-function parseUserRef(raw: string): { id: number } | { publicId: string } {
-  if (/^\d+$/.test(raw)) {
-    const id = Number(raw);
-    if (id > 0) return { id };
-  }
-  return { publicId: raw };
-}
-
-function refMatchesCaller(ref: ReturnType<typeof parseUserRef>, caller: User): boolean {
-  if ('id' in ref) {
-    return caller.id === ref.id;
-  }
-  return caller.publicId === ref.publicId;
-}
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   return requireAuth(req, async (caller) => {
