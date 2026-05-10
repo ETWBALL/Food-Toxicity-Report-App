@@ -340,14 +340,14 @@ export async function orchestrateSafetyReport(
       : brand?.trim().slice(0, 80) ?? '';
 
   if ((productType === 'food' || productType === 'supplement') && fdaToken.length > 3) {
-    foodRecalls = await fetchFoodRecalls(fdaToken);
+    foodRecalls = await fetchFoodRecalls(fdaToken, brand ?? undefined);
     trace.push(`fda:food-enforcement:${foodRecalls.length}`);
     foodAdverse = await fetchFoodAdverseEvents(fdaToken);
     trace.push(`fda:food-event:${foodAdverse.length}`);
   }
 
   if ((productType === 'Drugs' || productType === 'supplement') && fdaToken.length > 3) {
-    drugRecalls = await fetchDrugRecalls(fdaToken);
+    drugRecalls = await fetchDrugRecalls(fdaToken, brand ?? undefined);
     drugAdverse = await fetchDrugAdverseEvents(fdaToken);
     trace.push(`fda:drug-enforcement:${drugRecalls.length}`);
     trace.push(`fda:drug-event:${drugAdverse.length}`);
