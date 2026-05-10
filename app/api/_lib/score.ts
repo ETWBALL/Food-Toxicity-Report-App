@@ -49,6 +49,13 @@ const SEVERITY_RANK: Record<string, number> = {
   'Class III': 1,
 };
 
+export function verdictFromScore(score: number | null | undefined): Verdict | null {
+  if (score === null || score === undefined) return null;
+  if (score >= 80) return 'Safe';
+  if (score >= 50) return 'Caution';
+  return 'Unsafe';
+}
+
 export function worstSeverity(severities: Array<string | null | undefined>): string | null {
   let best: string | null = null;
   let bestRank = 0;
