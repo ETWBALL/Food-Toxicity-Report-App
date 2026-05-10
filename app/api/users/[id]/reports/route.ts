@@ -24,8 +24,22 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       where: { userId: caller.id },
       orderBy: { createdAt: 'desc' },
       take: 100,
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            barcodeNumber: true,
+            imageUrl: true,
+            type: true,
+            brand: true,
+          },
+        },
+      },
     });
 
-    return NextResponse.json(reports.map((r) => fullSafetyReportJson(r)));
+    return NextResponse.json(
+      reports.map(({ product, ...row }) => ({ ...fullSafetyReportJson(row), product })),
+    );
   });
 }
