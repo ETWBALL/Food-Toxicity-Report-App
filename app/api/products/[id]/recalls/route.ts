@@ -20,7 +20,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // affectedUpcCodes is TEXT (per Prisma migration), not TEXT[]. Use substring match.
   const recalls = await prisma.recall.findMany({
     where: {
-      ...(activeOnly ? { isActive: true } : {}),
+      ...(activeOnly ? { active: true } : {}),
       OR: [
         { productId },
         ...(barcode ? [{ affectedUpcCodes: { contains: barcode } }] : []),
@@ -29,7 +29,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     orderBy: [{ recallDate: 'desc' }, { id: 'desc' }],
   });
 
-  const activeRecalls = recalls.filter((r) => r.isActive).length;
+  const activeRecalls = recalls.filter((r) => r.active).length;
 
   return ok({ productId, activeRecalls, recalls });
 }

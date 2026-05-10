@@ -28,7 +28,7 @@ describe('GET /api/recalls/:recallId', () => {
       severityLevel: 'Class I',
       recallReason: 'Undeclared peanuts',
       officialRecallUrl: 'https://www.accessdata.fda.gov/...',
-      isActive: true,
+      active: true,
     };
     mockPrisma.recall.findUnique.mockResolvedValueOnce(row);
     const res = await callGet('9');

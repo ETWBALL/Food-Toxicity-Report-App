@@ -95,8 +95,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       productId: s.productId,
       productName: s.product?.name ?? null,
       productImage: s.product?.imageUrl ?? null,
-      safetyScore: s.safetyScore,
-      verdict: verdictFromScore(s.safetyScore),
+      safetyScore: s.score,
+      verdict: s.verdict ?? verdictFromScore(s.score),
       scannedAt: s.scannedAt,
     }));
 
@@ -129,7 +129,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const [activeRecalls, allergies, medications] = await Promise.all([
       prisma.recall.findMany({
         where: {
-          isActive: true,
+          active: true,
           OR: [
             { productId: product.id },
             { affectedUpcCodes: { contains: barcodeNumber } },
@@ -151,18 +151,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const recallSeverity = worstSeverity(activeRecalls.map((r) => r.severityLevel));
     const officialRecallUrl = activeRecalls[0]?.officialRecallUrl ?? null;
 
-    const allergyFlags = detectAllergyFlags(
-      allergies.map((a) => a.allergen),
-      product.ingredientList,
-    );
+    const allergenTerms = allergies
+      .map((a) => a.allergen)
+      .filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+    const allergyFlags = detectAllergyFlags(allergenTerms, product.ingredientList);
 
     // Drug-label fetches in parallel — a 3-medication user used to take ~3x
     // sequential FDA round-trips before this; now bounded by the slowest one.
-    const drugLabels = await Promise.all(
-      medications.map((m) => fetchDrugLabel(m.medicationName)),
-    );
+    const medNames = medications
+      .map((m) => m.medicationName)
+      .filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+    const drugLabels = await Promise.all(medNames.map((name) => fetchDrugLabel(name)));
     const drugFlags: DrugFlag[] = drugLabels.flatMap((label, i) =>
-      detectDrugConflicts(medications[i].medicationName, label, product.ingredientList),
+      detectDrugConflicts(medNames[i], label, product.ingredientList),
     );
 
     const userProfileExists = allergies.length + medications.length > 0;
@@ -197,7 +198,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const [scan] = await prisma.$transaction(async (tx) => {
       const created = await tx.scanHistory.create({
-        data: { userId: caller.id, productId: product.id, safetyScore: score },
+        data: {
+          userId: caller.id,
+          productId: product.id,
+          score,
+          verdict,
+        },
       });
       const reportRow = await tx.safetyReport.create({
         data: {

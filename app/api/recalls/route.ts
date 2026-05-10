@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   const offset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
 
   const where: Prisma.RecallWhereInput = {
-    ...(includeInactive ? {} : { isActive: true }),
+    ...(includeInactive ? {} : { active: true }),
     ...(severity ? { severityLevel: severity } : {}),
     ...(issuingAuthority ? { issuingAuthority } : {}),
   };

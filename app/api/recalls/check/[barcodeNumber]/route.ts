@@ -15,7 +15,7 @@ export async function POST(_: Request, { params }: { params: { barcodeNumber: st
 
   const recalls = await prisma.recall.findMany({
     where: {
-      isActive: true,
+      active: true,
       OR: [
         ...(product ? [{ productId: product.id }] : []),
         { affectedUpcCodes: { contains: bc } },

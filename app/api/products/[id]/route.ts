@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gateCatalogWrite } from '@/lib/auth/gate-catalog-write';
 import { prisma } from '@/lib/prisma';
 import { badRequest, notFound, ok, parseId, validationError } from '../../_lib/http';
 
@@ -28,6 +29,9 @@ const PutProductSchema = z
   .strict();
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
+  const denied = await gateCatalogWrite(req);
+  if (denied) return denied;
+
   const id = parseId(params.id);
   if (!id) return badRequest('invalid product id');
   const raw = await req.json().catch(() => null);

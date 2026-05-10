@@ -67,19 +67,19 @@ describe('GET /api/recalls', () => {
     expect((await res.json()).offset).toBe(0);
   });
 
-  it('passes severity, issuingAuthority, and isActive filters to prisma', async () => {
+  it('passes severity, issuingAuthority, and active filters to prisma', async () => {
     mockPrisma.recall.findMany.mockResolvedValueOnce([]);
     mockPrisma.recall.count.mockResolvedValueOnce(0);
     await callGet('severity=Class+I&issuingAuthority=FDA');
     const arg = mockPrisma.recall.findMany.mock.calls[0][0];
     expect(arg.where).toEqual({
-      isActive: true,
+      active: true,
       severityLevel: 'Class I',
       issuingAuthority: 'FDA',
     });
   });
 
-  it('drops isActive filter when includeInactive=true', async () => {
+  it('drops active filter when includeInactive=true', async () => {
     mockPrisma.recall.findMany.mockResolvedValueOnce([]);
     mockPrisma.recall.count.mockResolvedValueOnce(0);
     await callGet('includeInactive=true');

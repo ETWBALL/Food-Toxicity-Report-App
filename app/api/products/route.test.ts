@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const INTERNAL_KEY = 'test-internal-catalog-key';
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
@@ -16,7 +18,10 @@ function callPost(body: unknown) {
   return POST(
     new Request('http://test/api/products', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${INTERNAL_KEY}`,
+      },
       body: typeof body === 'string' ? body : JSON.stringify(body),
     }),
   );
@@ -24,7 +29,12 @@ function callPost(body: unknown) {
 
 describe('POST /api/products', () => {
   beforeEach(() => {
+    vi.stubEnv('INTERNAL_API_KEY', INTERNAL_KEY);
     mockPrisma.product.upsert.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('201 with valid body upserts row', async () => {

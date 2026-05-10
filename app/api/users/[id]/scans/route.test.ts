@@ -93,14 +93,15 @@ describe('GET /api/users/:id/scans', () => {
     expect(res.status).toBe(403);
   });
 
-  it('200 wraps scans with product join + verdict from safetyScore', async () => {
+  it('200 wraps scans with product join + verdict from score', async () => {
     authPasses();
     mockPrisma.scanHistory.findMany.mockResolvedValueOnce([
       {
         id: 301,
         productId: 7,
         scannedAt: new Date('2026-05-09T14:22:00Z'),
-        safetyScore: 85,
+        score: 85,
+        verdict: null,
         product: { id: 7, name: 'Cheerios', imageUrl: 'https://x' },
       },
     ]);
@@ -141,14 +142,15 @@ describe('GET /api/users/:id/scans', () => {
     expect(res.status).toBe(200);
   });
 
-  it('verdict null when safetyScore is null', async () => {
+  it('verdict null when score is null', async () => {
     authPasses();
     mockPrisma.scanHistory.findMany.mockResolvedValueOnce([
       {
         id: 1,
         productId: 1,
         scannedAt: new Date(),
-        safetyScore: null,
+        score: null,
+        verdict: null,
         product: { id: 1, name: 'X', imageUrl: null },
       },
     ]);
