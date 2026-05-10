@@ -91,18 +91,25 @@ function stableNameKey(productName: string): string {
 function scoreAllergens(ingredients: string | null, allergies: UserAllergy[]): number {
   if (!ingredients || allergies.length === 0) return 100;
   let score = 100;
+  let hadLiteralMatch = false;
   const ing = ingredients.toLowerCase();
   for (const a of allergies) {
     const raw = a.allergen;
     if (!raw) continue;
     const term = raw.toLowerCase();
     if (term.length > 1 && ing.includes(term)) {
+      hadLiteralMatch = true;
       const sev = (a.severity ?? '').toLowerCase();
-      if (sev.includes('severe')) score -= 45;
-      else if (sev.includes('moderate')) score -= 28;
-      else score -= 15;
+      if (sev.includes('severe')) score -= 60;
+      else if (sev.includes('moderate')) score -= 55;
+      else score -= 50;
     }
   }
+  // SAFETY HARD FLOOR: a literal user-listed allergen in ingredientList is
+  // potentially life-threatening regardless of `severity` field. Default
+  // severity tagging is unreliable (users often leave it blank) — never let
+  // a -15 deduction soften this into the green/yellow zone.
+  if (hadLiteralMatch) score = Math.min(score, 20);
   return clamp(score);
 }
 
@@ -473,11 +480,15 @@ export async function orchestrateSafetyReport(
         ? clamp(92 - (newsDedup.some((n) => /\b(recall|contamination)\b/i.test(n.title)) ? 12 : 0))
         : scoreToxicityKeyword(ingredientList, newsDedup.map((n) => n.title));
 
-  const overallScore = clamp(
+  let overallScore = clamp(
     Math.round(
       (recallScore + adverseEventScore + allergenScore + drugInteractionScore + toxicityScore) / 5,
     ),
   );
+  // SAFETY OVERRIDE: a product is never "safe overall" when a user allergen
+  // is literally in its ingredients. Prevents a single high-confidence red
+  // flag from being averaged into a green score by 4 unrelated dimensions.
+  if (allergenScore <= 25) overallScore = Math.min(overallScore, 25);
 
   const recallSummaries = summarizeRecalls([...foodRecalls, ...drugRecalls]);
   const drugAdverseSummary = summarizeDrugAdverse(drugAdverse);
