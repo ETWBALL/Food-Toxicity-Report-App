@@ -42,36 +42,47 @@ function isPlaceholderName(n?: string | null): boolean {
 
 // ─── Multi-step status messages during generation ─────────────────────────────
 
-const STATUS_STEPS = [
-  { msg: 'Looking up product…', pct: 8 },
-  { msg: 'Checking FDA recalls & adverse events…', pct: 25 },
-  { msg: 'Scanning drug interactions…', pct: 42 },
-  { msg: 'Fetching nutritional data…', pct: 58 },
-  { msg: 'Running AI safety analysis…', pct: 75 },
-  { msg: 'Building your safety report…', pct: 90 },
-  { msg: 'Almost there…', pct: 97 },
+const PROGRESS_TIMELINE = [
+  { ms: 0,     msg: 'Looking up product…',                    pct: 5  },
+  { ms: 1800,  msg: 'Checking FDA recalls & adverse events…', pct: 18 },
+  { ms: 5000,  msg: 'Scanning drug interactions…',            pct: 32 },
+  { ms: 8500,  msg: 'Fetching nutritional data…',             pct: 47 },
+  { ms: 13000, msg: 'Running AI safety analysis…',            pct: 60 },
+  { ms: 19000, msg: 'Analyzing your health profile…',         pct: 75 },
+  { ms: 25000, msg: 'Building your safety report…',           pct: 88 },
+  { ms: 31000, msg: 'Almost there…',                          pct: 95 },
 ];
 
 function useStatusCycle(active: boolean) {
-  const [step, setStep] = useState(0);
+  const [msg, setMsg] = useState('');
   const [pct, setPct] = useState(0);
 
   useEffect(() => {
-    if (!active) { setStep(0); setPct(0); return; }
-    setStep(0);
-    setPct(STATUS_STEPS[0].pct);
-    const delays = [1400, 2800, 4200, 5800, 7500, 9500, 12000];
-    const handles: ReturnType<typeof setTimeout>[] = delays.map((delay, i) =>
-      setTimeout(() => {
-        const idx = Math.min(i + 1, STATUS_STEPS.length - 1);
-        setStep(idx);
-        setPct(STATUS_STEPS[idx].pct);
-      }, delay),
-    );
-    return () => handles.forEach(clearTimeout);
+    if (!active) { setMsg(''); setPct(0); return; }
+    const start = Date.now();
+    setMsg(PROGRESS_TIMELINE[0].msg);
+    setPct(PROGRESS_TIMELINE[0].pct);
+    const iv = setInterval(() => {
+      const elapsed = Date.now() - start;
+      let current = PROGRESS_TIMELINE[0];
+      let currentIdx = 0;
+      for (let i = 0; i < PROGRESS_TIMELINE.length; i++) {
+        if (elapsed >= PROGRESS_TIMELINE[i].ms) { current = PROGRESS_TIMELINE[i]; currentIdx = i; }
+      }
+      setMsg(current.msg);
+      const next = PROGRESS_TIMELINE[currentIdx + 1];
+      if (next) {
+        const frac = (elapsed - current.ms) / (next.ms - current.ms);
+        setPct(Math.round(current.pct + (next.pct - current.pct) * Math.min(frac, 1)));
+      } else {
+        const overtime = elapsed - current.ms;
+        setPct(Math.min(current.pct + (overtime / 15000) * 4, 99));
+      }
+    }, 600);
+    return () => clearInterval(iv);
   }, [active]);
 
-  return { msg: STATUS_STEPS[step]?.msg ?? '', pct };
+  return { msg, pct };
 }
 
 // ─── Scanner / report-generation panel ───────────────────────────────────────
@@ -575,15 +586,6 @@ export function SafetyReportView({ report }: { report: SafetyReport }) {
         })}
       </div>
 
-      {report.aiAnalysisSummary && !report.aiAnalysisSummary.startsWith('SYSTEM:') && (
-        <details className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4" open>
-          <summary className="cursor-pointer font-semibold text-white">AI Analysis</summary>
-          <div className="mt-3 text-sm leading-relaxed text-white/80 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:font-bold [&_h2]:font-semibold [&_h3]:font-semibold [&_h1]:mt-3 [&_h2]:mt-2 [&_h3]:mt-2 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 [&_strong]:text-white [&_p]:my-1">
-            <ReactMarkdown>{report.aiAnalysisSummary}</ReactMarkdown>
-          </div>
-        </details>
-      )}
-
       <div className="mt-3 flex flex-wrap gap-2">
         {report.allergenFlags && (
           <span className="rounded-full border border-[#ffb38a]/40 bg-[#ffb38a]/10 px-3 py-1 text-xs text-[#ffb38a]">
@@ -600,15 +602,35 @@ export function SafetyReportView({ report }: { report: SafetyReport }) {
   );
 }
 
-// ─── Chat panel ───────────────────────────────────────────────────────────────
+// ─── AI Analysis panel (separate box) ────────────────────────────────────────
+
+export function AIAnalysisPanel({ summary }: { summary: string }) {
+  return (
+    <div className="rounded-3xl border border-[#00e5b0]/20 bg-white/5 p-6 text-white shadow-lg shadow-black/10">
+      <h3 className="mb-3 flex items-center gap-2 font-semibold">
+        <span className="text-[#00e5b0]">✦</span> AI Safety Analysis
+      </h3>
+      <div className="max-h-96 overflow-y-auto pr-1 themed-scroll text-sm leading-relaxed text-white/80 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:font-bold [&_h2]:font-semibold [&_h3]:font-semibold [&_h1]:mt-3 [&_h2]:mt-2 [&_h3]:mt-2 [&_ul]:pl-4 [&_ol]:pl-4 [&_li]:my-0.5 [&_strong]:text-white [&_p]:my-1 [&_p:first-child]:mt-0">
+        <ReactMarkdown>{summary}</ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
+// ─── Chat panel ─────────────────────────────────────────────────────────────
 
 interface ChatPanelProps {
   reportId: number;
   sessionId: number;
+  initialMessage?: string | null;
 }
 
-export function ChatPanel({ reportId, sessionId }: ChatPanelProps) {
-  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
+export function ChatPanel({ reportId, sessionId, initialMessage }: ChatPanelProps) {
+  const [msgs, setMsgs] = useState<ChatMsg[]>(() =>
+    initialMessage && !initialMessage.startsWith('SYSTEM:')
+      ? [{ role: 'assistant' as const, content: initialMessage }]
+      : [],
+  );
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);

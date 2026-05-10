@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Navbar } from '@/components/navbar';
-import { ScanPanel, SafetyReportView, ChatPanel } from '@/components/scan-panel';
+import { ScanPanel, SafetyReportView, AIAnalysisPanel, ChatPanel } from '@/components/scan-panel';
 import type { SafetyReport } from '@/components/scan-panel';
 
 export default function ScanPage() {
@@ -62,12 +62,15 @@ export default function ScanPage() {
               </div>
               <ScanPanel onReportReady={handleReportReady} />
               <SafetyReportView report={report} />
+              {report.aiAnalysisSummary && !report.aiAnalysisSummary.startsWith('SYSTEM:') && (
+                <AIAnalysisPanel summary={report.aiAnalysisSummary} />
+              )}
             </div>
 
             {/* Right column: chat — sticky on desktop */}
             <div className="lg:sticky lg:top-6 lg:self-start" style={{ height: 'calc(100vh - 5rem)' }}>
               {chatSessionId ? (
-                <ChatPanel reportId={report.id} sessionId={chatSessionId} />
+                <ChatPanel reportId={report.id} sessionId={chatSessionId} initialMessage={report.aiAnalysisSummary} />
               ) : (
                 <div className="flex h-full items-center justify-center rounded-3xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/40">
                   Chat unavailable — please sign in to continue the conversation.

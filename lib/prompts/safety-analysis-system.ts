@@ -9,6 +9,7 @@ Rules:
 - All scores are integers from 0 (worst) to 100 (best) unless specified otherwise.
 - "100" on a sub-score means no significant concern in that dimension for this user; lower values mean higher concern.
 - Base your reasoning on the DATA provided. If data is missing, say so inside the JSON text fields, do not invent lab values or recall dates.
+- CRITICAL ALLERGEN RULE: If the user lists an allergen AND that allergen (or a derivative) appears in the product ingredients, the allergenScore MUST be ≤25 and the overallScore MUST be ≤30. Do not soften this — an allergen present in a product is a potential medical emergency for a sensitized individual.
 - Be cautious: this is not a diagnosis; recommend professional care when appropriate.
 
 The JSON must match this structure (all keys required unless marked optional):
