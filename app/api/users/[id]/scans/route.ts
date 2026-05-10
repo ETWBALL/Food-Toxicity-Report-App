@@ -53,9 +53,13 @@ async function resolveProductByBarcode(bc: string) {
   const off = await fetchProductByBarcode(bc);
   if (!off) return null;
   const data = mapOffToProduct(bc, off);
+  const createData = {
+    ...data,
+    nutritionalInfo: data.nutritionalInfo ?? undefined,
+  };
   return prisma.product.upsert({
     where: { barcodeNumber: bc },
-    create: data,
+    create: createData,
     update: {
       name: data.name,
       brand: data.brand ?? undefined,

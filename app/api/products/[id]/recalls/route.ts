@@ -21,7 +21,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const u = new URL(req.url);
   const activeOnly = u.searchParams.get('activeOnly') !== 'false';
 
-  // Fetch product first to know barcodeNumber for affectedUpcCodes substring match.
+  // Fetch product first to know barcode for affectedUpcCodes substring match.
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: { barcodeNumber: true },

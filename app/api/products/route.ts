@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       countryOfOrigin: body.countryOfOrigin ?? null,
       servingSize: body.servingSize ?? null,
       ingredientList: body.ingredientList ?? null,
-      nutritionalInfo,
+      nutritionalInfo: nutritionalInfo ?? undefined,
       imageUrl: body.imageUrl ?? null,
       type: body.type ?? null,
     },

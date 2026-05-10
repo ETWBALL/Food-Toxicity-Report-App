@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { verdictFromScore } from '@/app/api/_lib/score';
 import { buildSafetyReportUpdateFromAi } from '@/lib/analysis/apply-ai-output';
 import { parseSafetyAiOutput } from '@/lib/analysis/parse-safety-ai-json';
-import { featherlessChat } from '@/lib/integrations/featherless';
+import { aiChat } from '@/lib/integrations/ai-chat';
 import { prisma } from '@/lib/prisma';
 import { SAFETY_ANALYSIS_SYSTEM_PROMPT } from '@/lib/prompts/safety-analysis-system';
 import { buildSafetyAnalysisUserPrompt } from '@/lib/prompts/safety-analysis-user';
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
         product: existing.product,
       });
 
-      const rawCompletion = await featherlessChat({
+      const rawCompletion = await aiChat({
         messages: [
           { role: 'system', content: SAFETY_ANALYSIS_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },

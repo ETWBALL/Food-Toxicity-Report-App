@@ -23,9 +23,13 @@ export async function GET(_: Request, { params }: { params: { barcodeNumber: str
   if (!off) return notFound('product not in catalog');
 
   const data = mapOffToProduct(bc, off);
+  const createData = {
+    ...data,
+    nutritionalInfo: data.nutritionalInfo ?? undefined,
+  };
   const upserted = await prisma.product.upsert({
     where: { barcodeNumber: bc },
-    create: data,
+    create: createData,
     update: {
       name: data.name,
       brand: data.brand ?? undefined,

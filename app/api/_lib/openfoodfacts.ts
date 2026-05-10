@@ -52,7 +52,6 @@ export async function fetchProductByBarcode(barcode: string): Promise<OffProduct
   return json.product ?? null;
 }
 
-/** Shape matches Prisma Product model (camelCase). `name` is required by the schema; falls back to "Unknown product" when OFF omits it. */
 export type ProductUpsertInput = {
   barcodeNumber: string;
   name: string;

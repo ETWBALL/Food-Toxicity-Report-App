@@ -1,5 +1,7 @@
 import { createHash } from 'crypto';
 import type {
+  Prisma,
+  Product,
   SafetyReport,
   ScanHistory,
   UserAllergy,
@@ -188,9 +190,13 @@ function nutritionSignalsWeak(
   return !hasN && !hasE;
 }
 
+export type ReportWithProduct = SafetyReport & { product: Product | null };
+
+export type OrchestrationResult = { report: ReportWithProduct; meta: OrchestrationMeta };
+
 export async function orchestrateSafetyReport(
   input: ReportOrchestrationInput,
-): Promise<{ report: SafetyReport; meta: OrchestrationMeta }> {
+): Promise<OrchestrationResult> {
   const trace: string[] = [];
   const isBarcode = 'barcode' in input;
   const barcode = isBarcode ? normalizeBarcode(input.barcode) : null;
@@ -232,10 +238,7 @@ export async function orchestrateSafetyReport(
     where: { barcodeNumber: productLookupKey },
   });
 
-  const cacheFresh =
-    isBarcode &&
-    !!existingProduct?.lastExternalResolutionAt &&
-    Date.now() - existingProduct.lastExternalResolutionAt.getTime() < cacheMs;
+  const cacheFresh = false;
 
   let upcTitle: string | null = null;
   let upcBrand: string | null = null;
@@ -292,9 +295,9 @@ export async function orchestrateSafetyReport(
         rapidTitle,
         off?.name,
         existingProduct?.name,
-        `Product ${barcode}`,
-      ) as string)
-    : (pickNonEmpty(existingProduct?.name, productNameOnly, 'Unknown product') as string);
+        // Do NOT fall back to `Product ${barcode}` — return empty so the UI can prompt user for name
+      ) ?? '')
+    : (pickNonEmpty(existingProduct?.name, productNameOnly, '') ?? '');
 
   const brand = isBarcode
     ? pickNonEmpty(upcBrand, rapidBrand, existingProduct?.brand, off?.brand, null)
@@ -328,16 +331,22 @@ export async function orchestrateSafetyReport(
   let drugAdverse: OpenfdaAdverseRow[] = [];
   let foodAdverse: OpenfdaFoodEventRow[] = [];
 
-  const fdaToken = (pickNonEmpty(name, brand, isBarcode ? barcode : null) ?? name).split(/\s+/)[0] ?? name;
+  // Use the full product name (up to 80 chars) for FDA search so we don't pull random recalls.
+  // Fall back to barcode only if name is literally just a barcode string.
+  const fdaSearchName = pickNonEmpty(name, brand) ?? '';
+  const fdaToken =
+    fdaSearchName && !fdaSearchName.startsWith('Barcode:') && fdaSearchName.trim().length > 3
+      ? fdaSearchName.trim().slice(0, 80)
+      : brand?.trim().slice(0, 80) ?? '';
 
-  if (productType === 'food' || productType === 'supplement') {
+  if ((productType === 'food' || productType === 'supplement') && fdaToken.length > 3) {
     foodRecalls = await fetchFoodRecalls(fdaToken);
     trace.push(`fda:food-enforcement:${foodRecalls.length}`);
     foodAdverse = await fetchFoodAdverseEvents(fdaToken);
     trace.push(`fda:food-event:${foodAdverse.length}`);
   }
 
-  if (productType === 'Drugs' || productType === 'supplement') {
+  if ((productType === 'Drugs' || productType === 'supplement') && fdaToken.length > 3) {
     drugRecalls = await fetchDrugRecalls(fdaToken);
     drugAdverse = await fetchDrugAdverseEvents(fdaToken);
     trace.push(`fda:drug-enforcement:${drugRecalls.length}`);
@@ -411,10 +420,15 @@ export async function orchestrateSafetyReport(
 
   const nutritionalInfo = pickNonEmpty(
     off?.nutrimentsJson,
-    existingProduct?.nutritionalInfo,
+    typeof existingProduct?.nutritionalInfo === 'string'
+      ? existingProduct.nutritionalInfo
+      : existingProduct?.nutritionalInfo != null
+        ? JSON.stringify(existingProduct.nutritionalInfo)
+        : null,
     nutritionalExtra.trim() || null,
     null,
   );
+  const nutritionalInfoValue: Prisma.InputJsonValue | undefined = nutritionalInfo ?? undefined;
 
   const imageUrl = isBarcode ? pickNonEmpty(off?.imageUrl, upcImage, rapidImage, existingProduct?.imageUrl, null) : existingProduct?.imageUrl ?? null;
 
@@ -425,37 +439,27 @@ export async function orchestrateSafetyReport(
     where: { barcodeNumber: productLookupKey },
     create: {
       barcodeNumber: productLookupKey,
-      name,
+      name: name || (isBarcode ? `Barcode:${barcode}` : 'Unknown product'),
       brand,
       manufacturer,
       ingredientList,
-      nutritionalInfo,
+      nutritionalInfo: nutritionalInfoValue,
       imageUrl,
       description: categories,
       type: prismaType,
-      lastExternalResolutionAt: new Date(),
-      externalResolutionSource: trace.filter((t) => t.includes('hit') || t.includes('fda')).join('|').slice(0, 240),
     },
     update: {
-      name,
+      // Only update name if we found a real name (don't overwrite a user-provided name with a placeholder)
+      ...(name ? { name } : {}),
       brand,
       manufacturer,
       ingredientList,
-      nutritionalInfo,
+      nutritionalInfo: nutritionalInfoValue,
       imageUrl,
       description: categories,
       type: prismaType,
-      lastExternalResolutionAt: !isBarcode ? new Date() : cacheFresh ? undefined : new Date(),
-      externalResolutionSource: trace.join('|').slice(0, 240),
     },
   });
-
-  if (isBarcode && !cacheFresh) {
-    await prisma.product.update({
-      where: { id: productRecord.id },
-      data: { lastExternalResolutionAt: new Date() },
-    });
-  }
 
   const recallScore = scoreRecalls([...foodRecalls, ...drugRecalls]);
   const adverseTotal = drugAdverse.length + foodAdverse.length;
@@ -591,11 +595,23 @@ export async function orchestrateSafetyReport(
     .filter(Boolean)
     .join('\n');
 
+  const userFacingSummary = [
+    allergenFlags ? `⚠️ Allergen Alert: ${allergenFlags}` : '',
+    recallScore < 90 ? `⚠️ Recall Risk: ${recallSummaries[0] || 'Review recalls'}` : '',
+    adverseEventScore < 90 ? `⚠️ Adverse Events: ${adverseTotal} reported` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 500) || null;
+
   const report = await prisma.safetyReport.create({
     data: {
       userId: input.userId,
       productId: productRecord.id,
       scanId: scanRow.id,
+      score: overallScore,
+      verdict: verdictFromScore(overallScore) ?? undefined,
+      summary: userFacingSummary,
       overallScore,
       allergenScore,
       toxicityScore,
@@ -645,13 +661,11 @@ export async function orchestrateSafetyReport(
       nutritionalSummary: nutritionalExtra.slice(0, 2000) || null,
       dailyValueWarnings: conditionParts.join(' | ') || null,
       conditionFlags: conditionParts.join(' | ') || null,
-      aiAnalysisSummary: [
-        `STUB LLM prompt (${productType}) stored server-side; replace with provider response.\n`,
-        primaryPrompt.slice(0, 3500),
-      ]
-        .join('')
-        .slice(0, 8000),
+      // aiAnalysisSummary is populated by the /api/analysis/generate route after AI call.
+      // Storing the raw prompt here would leak the system prompt to the UI — intentionally null.
+      aiAnalysisSummary: null,
     },
+    include: { product: true },
   });
 
   const meta: OrchestrationMeta = {

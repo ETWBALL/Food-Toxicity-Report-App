@@ -1,3 +1,55 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --bg: #0a0e1a;
+  --surface: #111827;
+  --surface-2: #1a2235;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-2: rgba(255, 255, 255, 0.16);
+  --accent: #00e5b0;
+  --accent-2: #0070f3;
+  --text: #eef3ff;
+  --muted: #7b8fb0;
+}
+
+body {
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(0, 229, 176, 0.18), transparent 35%),
+    radial-gradient(circle at 80% 20%, rgba(0, 112, 243, 0.2), transparent 32%),
+    linear-gradient(180deg, #0a0e1a 0%, #0b1222 50%, #0a0e1a 100%);
+  color: var(--text);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading), system-ui, -apple-system, sans-serif;
+}
+
+/* Themed scrollbars (chat panes, modals, etc.) */
+.themed-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 229, 176, 0.45) rgba(255, 255, 255, 0.04);
+}
+.themed-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.themed-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+}
+.themed-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(0, 229, 176, 0.6), rgba(0, 112, 243, 0.6));
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.themed-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(0, 229, 176, 0.9), rgba(0, 112, 243, 0.9));
+  background-clip: padding-box;
+}

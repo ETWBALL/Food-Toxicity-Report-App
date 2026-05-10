@@ -1,38 +1,83 @@
-import Link from 'next/link';
-import { Form } from 'app/form';
-import { signIn } from 'app/auth';
-import { SubmitButton } from 'app/submit-button';
+'use client';
 
-export default function Login() {
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { Navbar } from '@/components/navbar';
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), password }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setLoading(false);
+
+    if (!res.ok) {
+      setError(json?.error || 'Unable to sign in');
+      return;
+    }
+    router.push('/profile');
+    router.refresh();
+  }
+
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
-      <div className="z-10 w-full max-w-md overflow-hidden rounded-2xl border border-gray-100 shadow-xl">
-        <div className="flex flex-col items-center justify-center space-y-3 border-b border-gray-200 bg-white px-4 py-6 pt-8 text-center sm:px-16">
-          <h3 className="text-xl font-semibold">Sign In</h3>
-          <p className="text-sm text-gray-500">
-            Use your email and password to sign in
-          </p>
-        </div>
-        <Form
-          action={async (formData: FormData) => {
-            'use server';
-            await signIn('credentials', {
-              redirectTo: '/protected',
-              email: formData.get('email') as string,
-              password: formData.get('password') as string,
-            });
-          }}
-        >
-          <SubmitButton>Sign in</SubmitButton>
-          <p className="text-center text-sm text-gray-600">
-            {"Don't have an account? "}
-            <Link href="/register" className="font-semibold text-gray-800">
-              Sign up
-            </Link>
-            {' for free.'}
-          </p>
-        </Form>
-      </div>
-    </div>
+    <main className="pb-12">
+      <Navbar />
+      <section className="mx-auto mt-12 w-[92%] max-w-md rounded-3xl border border-white/10 bg-white/5 p-7 text-white shadow-lg shadow-black/20 backdrop-blur">
+        <h1 className="text-2xl font-semibold">Sign in</h1>
+        <p className="mt-2 text-sm text-white/60">Welcome back to SafeScan.</p>
+
+        <form onSubmit={onSubmit} className="mt-6 space-y-4" autoComplete="on">
+          <input
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            required
+            className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#00e5b0]"
+          />
+          <input
+            type="password"
+            name="current-password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            required
+            className="w-full rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#00e5b0]"
+          />
+          {error ? <p className="text-sm text-[#ff8596]">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-[#00e5b0] px-4 py-3 text-sm font-semibold text-[#06130f] hover:bg-[#1af0bf] disabled:opacity-70"
+          >
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+
+        <p className="mt-5 text-sm text-white/60">
+          Need an account?{' '}
+          <Link href="/register" className="font-medium text-[#00e5b0]">
+            Sign up
+          </Link>
+        </p>
+      </section>
+    </main>
   );
 }

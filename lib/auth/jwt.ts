@@ -3,9 +3,9 @@ import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 const ACCESS_ALG = 'HS256';
 
 function requireEnv(name: 'JWT_ACCESS_SECRET' | 'JWT_REFRESH_SECRET'): Uint8Array {
-  const value = process.env[name];
+  const value = process.env[name] || process.env.AUTH_SECRET;
   if (!value) {
-    throw new Error(`${name} is not set`);
+    throw new Error(`${name} is not set (and AUTH_SECRET fallback is missing)`);
   }
   return new TextEncoder().encode(value);
 }
