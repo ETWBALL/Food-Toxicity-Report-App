@@ -2,6 +2,8 @@ import { ensureApiTables, sql } from '../../../_lib/db';
 import { ok } from '../../../_lib/http';
 import { worstSeverity } from '../../../_lib/score';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(_: Request, { params }: { params: { barcodeNumber: string } }) {
   await ensureApiTables();
   const bc = params.barcodeNumber;

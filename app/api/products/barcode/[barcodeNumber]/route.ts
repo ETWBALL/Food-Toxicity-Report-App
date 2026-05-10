@@ -2,6 +2,8 @@ import { ensureApiTables, sql } from '../../../_lib/db';
 import { notFound, ok } from '../../../_lib/http';
 import { fetchProductByBarcode, mapOffToProductRow } from '../../../_lib/openfoodfacts';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_: Request, { params }: { params: { barcodeNumber: string } }) {
   await ensureApiTables();
   const bc = params.barcodeNumber;

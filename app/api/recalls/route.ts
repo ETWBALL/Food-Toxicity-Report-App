@@ -1,6 +1,8 @@
 import { ensureApiTables, sql } from '../_lib/db';
 import { ok } from '../_lib/http';
 
+export const dynamic = 'force-dynamic';
+
 function clamp(n: number, min: number, max: number): number {
   return Math.min(Math.max(n, min), max);
 }

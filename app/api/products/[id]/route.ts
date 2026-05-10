@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { ensureApiTables, sql } from '../../_lib/db';
 import { badRequest, notFound, ok, parseId } from '../../_lib/http';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   await ensureApiTables();
   const id = parseId(params.id);

@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { ensureApiTables, sql } from '../_lib/db';
 import { badRequest, ok } from '../_lib/http';
 
+export const dynamic = 'force-dynamic';
+
 const PostProductSchema = z.object({
   barcode: z.string().min(1),
   name: z.string().min(1),
