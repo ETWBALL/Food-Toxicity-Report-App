@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gateCatalogWrite } from '@/lib/auth/gate-catalog-write';
 import { prisma } from '@/lib/prisma';
 import { ok, validationError } from '../_lib/http';
 
@@ -19,6 +20,9 @@ const PostProductSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const denied = await gateCatalogWrite(req);
+  if (denied) return denied;
+
   const raw = await req.json().catch(() => null);
   const parsed = PostProductSchema.safeParse(raw);
   if (!parsed.success) return validationError(parsed.error.issues);

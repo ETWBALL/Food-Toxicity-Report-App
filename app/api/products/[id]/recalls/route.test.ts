@@ -26,23 +26,23 @@ describe('GET /api/products/:id/recalls', () => {
   it('returns {productId, activeRecalls, recalls} wrapper', async () => {
     mockPrisma.product.findUnique.mockResolvedValueOnce({ barcodeNumber: '0037600100694' });
     mockPrisma.recall.findMany.mockResolvedValueOnce([
-      { id: 9, isActive: true, severityLevel: 'Class I' },
+      { id: 9, active: true, severityLevel: 'Class I' },
     ]);
     const res = await callGet('42');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       productId: 42,
       activeRecalls: 1,
-      recalls: [{ id: 9, isActive: true, severityLevel: 'Class I' }],
+      recalls: [{ id: 9, active: true, severityLevel: 'Class I' }],
     });
   });
 
-  it('activeRecalls counts only rows with isActive=true', async () => {
+  it('activeRecalls counts only rows with active=true', async () => {
     mockPrisma.product.findUnique.mockResolvedValueOnce({ barcodeNumber: 'x' });
     mockPrisma.recall.findMany.mockResolvedValueOnce([
-      { id: 1, isActive: true, severityLevel: 'Class I' },
-      { id: 2, isActive: false, severityLevel: 'Class III' },
-      { id: 3, isActive: true, severityLevel: 'Class II' },
+      { id: 1, active: true, severityLevel: 'Class I' },
+      { id: 2, active: false, severityLevel: 'Class III' },
+      { id: 3, active: true, severityLevel: 'Class II' },
     ]);
     const res = await callGet('42', 'activeOnly=false');
     const body = await res.json();

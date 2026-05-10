@@ -1,25 +1,138 @@
-import { ensureApiTables, sql } from '../../_lib/db';
-import { badRequest, ok } from '../../_lib/http';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { verdictFromScore } from '@/app/api/_lib/score';
+import { buildSafetyReportUpdateFromAi } from '@/lib/analysis/apply-ai-output';
+import { parseSafetyAiOutput } from '@/lib/analysis/parse-safety-ai-json';
+import { featherlessChat } from '@/lib/integrations/featherless';
+import { prisma } from '@/lib/prisma';
+import { SAFETY_ANALYSIS_SYSTEM_PROMPT } from '@/lib/prompts/safety-analysis-system';
+import { buildSafetyAnalysisUserPrompt } from '@/lib/prompts/safety-analysis-user';
+import { requireAuth } from '@/lib/auth/proxy';
+import { badRequest } from '../../_lib/http';
+
+const bodySchema = z
+  .object({
+    reportId: z.number().int().positive(),
+  })
+  .strict();
 
 export async function POST(req: Request) {
-  await ensureApiTables();
-  const body = await req.json().catch(() => null);
-  if (!body?.productId || !body?.type) return badRequest('productId and type required');
+  return requireAuth(req, async (caller) => {
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return badRequest('Invalid JSON body');
+    }
 
-  // Placeholder summary until provider wiring is done.
-  const generated = {
-    summary: `Analysis for product ${body.productId} (${body.type}) generated.`,
-    generatedAt: new Date().toISOString(),
-    risks: body.risks || [],
-  };
+    const parsedBody = bodySchema.safeParse(body);
+    if (!parsedBody.success) {
+      return NextResponse.json({ error: 'Validation failed', issues: parsedBody.error.issues }, { status: 400 });
+    }
 
-  const rows = await sql`
-    INSERT INTO ai_analysis_cache (product_id, analysis_type, content)
-    VALUES (${body.productId}, ${body.type}, ${JSON.stringify(generated)}::jsonb)
-    ON CONFLICT (product_id, analysis_type)
-    DO UPDATE SET content = EXCLUDED.content, created_at = NOW()
-    RETURNING *
-  `;
+    const reportId = parsedBody.data.reportId;
 
-  return ok(rows[0], 201);
+    const existing = await prisma.safetyReport.findFirst({
+      where: { id: reportId, userId: caller.id },
+      include: {
+        product: true,
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Report not found' }, { status: 404 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: caller.id },
+      include: {
+        allergies: true,
+        conditions: true,
+        medications: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    try {
+      const userPrompt = buildSafetyAnalysisUserPrompt({
+        user,
+        allergies: user.allergies,
+        conditions: user.conditions,
+        medications: user.medications,
+        report: existing,
+        product: existing.product,
+      });
+
+      const rawCompletion = await featherlessChat({
+        messages: [
+          { role: 'system', content: SAFETY_ANALYSIS_SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.35,
+        maxTokens: 4096,
+      });
+
+      let structured: ReturnType<typeof parseSafetyAiOutput>;
+      try {
+        structured = parseSafetyAiOutput(rawCompletion);
+      } catch (parseErr) {
+        const isProd = process.env.NODE_ENV === 'production';
+        return NextResponse.json(
+          {
+            error: 'Model response could not be parsed as JSON',
+            detail: parseErr instanceof Error ? parseErr.message : String(parseErr),
+            ...(!isProd ? { rawResponse: rawCompletion.slice(0, 12000) } : {}),
+          },
+          { status: 502 },
+        );
+      }
+
+      const updateData = buildSafetyReportUpdateFromAi(structured);
+
+      const updated = await prisma.safetyReport.update({
+        where: { id: reportId },
+        data: updateData,
+        include: { product: true },
+      });
+
+      if (updated.scanId != null) {
+        const v = verdictFromScore(structured.scores.overallScore);
+        await prisma.scanHistory.update({
+          where: { id: updated.scanId },
+          data: {
+            score: structured.scores.overallScore,
+            verdict: v ?? undefined,
+          },
+        });
+      }
+
+      const url = new URL(req.url);
+      const debug = url.searchParams.get('debug') === '1';
+
+      return NextResponse.json(
+        {
+          success: true,
+          report: updated,
+          ai: {
+            scores: structured.scores,
+            summary: structured.summary,
+            aiAnalysisSummary: structured.aiAnalysisSummary,
+            narrativeFields: structured.narrativeFields ?? null,
+            outcome: structured.outcome ?? null,
+          },
+          ...(debug ? { rawModelText: rawCompletion } : {}),
+        },
+        { status: 200 },
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Analysis failed';
+      if (msg.includes('FEATHERLESS_API_KEY')) {
+        return NextResponse.json({ error: msg }, { status: 500 });
+      }
+      return NextResponse.json({ error: msg }, { status: 502 });
+    }
+  });
 }

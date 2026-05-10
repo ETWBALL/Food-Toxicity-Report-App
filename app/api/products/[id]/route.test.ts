@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const INTERNAL_KEY = 'test-internal-catalog-key';
 
 const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
@@ -21,7 +23,10 @@ function callPut(id: string, body: unknown) {
   return PUT(
     new Request(`http://test/api/products/${id}`, {
       method: 'PUT',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${INTERNAL_KEY}`,
+      },
       body: typeof body === 'string' ? body : JSON.stringify(body),
     }),
     { params: { id } },
@@ -65,7 +70,12 @@ describe('GET /api/products/:id', () => {
 
 describe('PUT /api/products/:id', () => {
   beforeEach(() => {
+    vi.stubEnv('INTERNAL_API_KEY', INTERNAL_KEY);
     mockPrisma.product.update.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('200 partial update returns updated row', async () => {

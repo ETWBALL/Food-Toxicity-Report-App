@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { clearAuthCookies } from '@/lib/auth/cookies';
 import { resolveUserIdForLogout } from '@/lib/auth/logout';
+import { safeAppRedirectPath } from '@/lib/auth/safe-redirect';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
   let redirectPath = '/';
   try {
     const body = (await req.json()) as { redirect?: unknown };
-    if (typeof body.redirect === 'string' && body.redirect.startsWith('/')) {
-      redirectPath = body.redirect;
+    if (typeof body.redirect === 'string') {
+      const safe = safeAppRedirectPath(body.redirect);
+      if (safe) redirectPath = safe;
     }
   } catch {
     /* body optional */

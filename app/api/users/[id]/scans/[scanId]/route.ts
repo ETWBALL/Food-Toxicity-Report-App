@@ -45,8 +45,8 @@ export async function GET(
     return ok({
       scanId: scan.id,
       scannedAt: scan.scannedAt,
-      safetyScore: scan.safetyScore,
-      verdict: verdictFromScore(scan.safetyScore),
+      safetyScore: scan.score,
+      verdict: scan.verdict ?? verdictFromScore(scan.score),
       product: scan.product
         ? { id: scan.product.id, name: scan.product.name, imageUrl: scan.product.imageUrl }
         : null,

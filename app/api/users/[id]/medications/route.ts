@@ -1,24 +1,71 @@
-import { ensureApiTables, sql } from '../../../_lib/db';
-import { badRequest, ok, parseId } from '../../../_lib/http';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { prisma } from '@/lib/prisma';
+import { parseUserRef, refMatchesCaller } from '@/lib/auth/user-ref';
+import { requireAuth } from '@/lib/auth/proxy';
+import type { User } from '@prisma/client';
+import { badRequest, ok, validationError } from '../../../_lib/http';
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
-  await ensureApiTables();
-  const userId = parseId(params.id);
-  if (!userId) return badRequest('invalid user id');
-  const rows = await sql`SELECT id, name FROM user_medications WHERE user_id = ${userId} ORDER BY id DESC`;
-  return ok(rows);
+const postSchema = z
+  .object({
+    medicationName: z.string().min(1).max(200),
+    name: z.string().max(200).optional(),
+    dosage: z.string().max(200).nullable().optional(),
+    frequency: z.string().max(200).nullable().optional(),
+  })
+  .strict();
+
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  return requireAuth(req, async (caller: User) => {
+    const ref = parseUserRef(params.id);
+    if (!refMatchesCaller(ref, caller)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const rows = await prisma.userMedication.findMany({
+      where: { userId: caller.id },
+      orderBy: { id: 'desc' },
+      select: {
+        id: true,
+        medicationName: true,
+        name: true,
+        dosage: true,
+        frequency: true,
+      },
+    });
+
+    return ok(rows);
+  });
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  await ensureApiTables();
-  const userId = parseId(params.id);
-  const body = await req.json().catch(() => null);
-  if (!userId) return badRequest('invalid user id');
-  if (!body?.name) return badRequest('name required');
-  const inserted = await sql`
-    INSERT INTO user_medications (user_id, name)
-    VALUES (${userId}, ${body.name})
-    RETURNING id, name
-  `;
-  return ok(inserted[0], 201);
+  return requireAuth(req, async (caller: User) => {
+    const ref = parseUserRef(params.id);
+    if (!refMatchesCaller(ref, caller)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const raw = await req.json().catch(() => null);
+    const parsed = postSchema.safeParse(raw);
+    if (!parsed.success) return validationError(parsed.error.issues);
+
+    const inserted = await prisma.userMedication.create({
+      data: {
+        userId: caller.id,
+        medicationName: parsed.data.medicationName,
+        name: parsed.data.name ?? parsed.data.medicationName,
+        dosage: parsed.data.dosage ?? null,
+        frequency: parsed.data.frequency ?? null,
+      },
+      select: {
+        id: true,
+        medicationName: true,
+        name: true,
+        dosage: true,
+        frequency: true,
+      },
+    });
+
+    return ok(inserted, 201);
+  });
 }

@@ -58,7 +58,7 @@ describe('GET /api/users/:id/scans/:scanId', () => {
       id: 301,
       productId: 7,
       scannedAt: new Date('2026-05-09T14:22:00Z'),
-      safetyScore: 20,
+      score: 20,
       product: { id: 7, name: 'Cheerios', imageUrl: 'https://x' },
       safetyReports: [
         {
@@ -89,7 +89,7 @@ describe('GET /api/users/:id/scans/:scanId', () => {
       id: 301,
       productId: 7,
       scannedAt: new Date(),
-      safetyScore: 85,
+      score: 85,
       product: { id: 7, name: 'X', imageUrl: null },
       safetyReports: [],
     });

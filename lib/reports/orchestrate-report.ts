@@ -6,6 +6,7 @@ import type {
   UserCondition,
   UserMedication,
 } from '@prisma/client';
+import { verdictFromScore } from '@/app/api/_lib/score';
 import { prisma } from '@/lib/prisma';
 import { nutritionApiNinjas } from '@/lib/integrations/api-ninjas-nutrition';
 import { analyzeIngredientsEdamam } from '@/lib/integrations/edamam';
@@ -90,7 +91,9 @@ function scoreAllergens(ingredients: string | null, allergies: UserAllergy[]): n
   let score = 100;
   const ing = ingredients.toLowerCase();
   for (const a of allergies) {
-    const term = a.allergen.toLowerCase();
+    const raw = a.allergen;
+    if (!raw) continue;
+    const term = raw.toLowerCase();
     if (term.length > 1 && ing.includes(term)) {
       const sev = (a.severity ?? '').toLowerCase();
       if (sev.includes('severe')) score -= 45;
@@ -123,7 +126,9 @@ function scoreDrugInteractions(labelText: string | null, meds: UserMedication[])
   let hits = 0;
   const lower = labelText.toLowerCase();
   for (const m of meds) {
-    const t = m.medicationName.trim().toLowerCase();
+    const name = m.medicationName;
+    if (!name) continue;
+    const t = name.trim().toLowerCase();
     if (t.length > 3 && lower.includes(t)) hits++;
   }
   return clamp(100 - hits * 20);
@@ -350,9 +355,11 @@ export async function orchestrateSafetyReport(
 
   const rxLines: string[] = [];
   for (const m of profile.medications.slice(0, 8)) {
-    const cands = await rxnormApproximateCandidates(m.medicationName);
+    const medName = m.medicationName;
+    if (!medName) continue;
+    const cands = await rxnormApproximateCandidates(medName);
     if (cands.length) {
-      rxLines.push(`${m.medicationName} → RxNorm: ${cands.map((c) => c.name ?? c.rxcui).join('; ')}`);
+      rxLines.push(`${medName} → RxNorm: ${cands.map((c) => c.name ?? c.rxcui).join('; ')}`);
     }
   }
   if (rxLines.length) trace.push('rxnorm:user-meds');
@@ -475,8 +482,12 @@ export async function orchestrateSafetyReport(
   const allergenFlags =
     allergenScore < 100
       ? profile.allergies
-          .filter((a) => ingredientList?.toLowerCase().includes(a.allergen.toLowerCase()))
+          .filter((a) => {
+            const term = a.allergen;
+            return term && ingredientList?.toLowerCase().includes(term.toLowerCase());
+          })
           .map((a) => a.allergen)
+          .filter((x): x is string => Boolean(x))
           .join(', ')
       : null;
 
@@ -504,7 +515,7 @@ export async function orchestrateSafetyReport(
 
   const conditionParts: string[] = [];
   for (const c of profile.conditions) {
-    const cn = c.conditionName.toLowerCase();
+    const cn = (c.conditionName ?? '').toLowerCase();
     if (
       (cn.includes('diabetes') || cn.includes('diabetic')) &&
       ninjas?.[0]?.sugar_g != null &&
@@ -525,9 +536,9 @@ export async function orchestrateSafetyReport(
       productName: name,
       brand,
       ingredients: ingredientList,
-      userAllergies: profile.allergies.map((a) => a.allergen),
-      userConditions: profile.conditions.map((c) => c.conditionName),
-      userMedications: profile.medications.map((m) => m.medicationName),
+      userAllergies: profile.allergies.map((a) => a.allergen).filter((x): x is string => Boolean(x)),
+      userConditions: profile.conditions.map((c) => c.conditionName).filter((x): x is string => Boolean(x)),
+      userMedications: profile.medications.map((m) => m.medicationName).filter((x): x is string => Boolean(x)),
       recallSummaries,
       adverseSummaries: adverseForPrompt,
       newsHeadlines: newsDedup.map((n) => n.title),
@@ -561,7 +572,8 @@ export async function orchestrateSafetyReport(
       where: { id: input.scanId },
       data: {
         productId: productRecord.id,
-        safetyScore: overallScore,
+        score: overallScore,
+        verdict: verdictFromScore(overallScore) ?? undefined,
       },
     });
   } else {
@@ -569,7 +581,8 @@ export async function orchestrateSafetyReport(
       data: {
         userId: input.userId,
         productId: productRecord.id,
-        safetyScore: overallScore,
+        score: overallScore,
+        verdict: verdictFromScore(overallScore) ?? undefined,
       },
     });
   }
