@@ -1,5 +1,14 @@
-// Reserved for Scans orchestration step 8 (AI summary) in PR #2.
-// Falls back to deterministicSummary when teammate's /api/analysis/generate is down.
+/**
+ * Deterministic templated summary used by POST /api/users/:id/scans.
+ *
+ * As of PR #7, real AI generation lives at POST /api/analysis/generate
+ * (Featherless-backed, requires reportId). The client triggers it after
+ * receiving the scan response. This file no longer attempts a network call —
+ * the previous implementation fetched /api/analysis/generate with the wrong
+ * payload shape ({kind, context} vs the real {reportId} contract) and always
+ * fell back to the template anyway.
+ */
+
 type ScanContext = {
   productName: string | null;
   score: number;
@@ -10,7 +19,7 @@ type ScanContext = {
   drugFlags: Array<{ medication: string; interaction: string }>;
 };
 
-function deterministicSummary(ctx: ScanContext): string {
+export function deterministicSummary(ctx: ScanContext): string {
   const parts: string[] = [];
   if (ctx.recallActive) {
     parts.push(`Active ${ctx.recallSeverity ?? 'recall'} on this product.`);
@@ -30,20 +39,10 @@ function deterministicSummary(ctx: ScanContext): string {
   return parts.join(' ');
 }
 
-export async function generateScanSummary(ctx: ScanContext, baseUrl: string): Promise<string> {
-  try {
-    const res = await fetch(`${baseUrl}/api/analysis/generate`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ kind: 'scan_summary', context: ctx }),
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!res.ok) return deterministicSummary(ctx);
-    const json = (await res.json()) as { summary?: string };
-    return json.summary?.trim() || deterministicSummary(ctx);
-  } catch {
-    return deterministicSummary(ctx);
-  }
+/**
+ * Returns a templated summary synchronously. Kept async-shaped for backward
+ * compatibility with callers that previously awaited a network roundtrip.
+ */
+export async function generateScanSummary(ctx: ScanContext, _baseUrl: string): Promise<string> {
+  return deterministicSummary(ctx);
 }
-
-export { deterministicSummary };
