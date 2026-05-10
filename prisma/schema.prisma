@@ -31,25 +31,29 @@ model User {
 }
 
 model Product {
-  id               Int              @id @default(autoincrement())
+  id               Int     @id @default(autoincrement())
   name             String
   description      String?
-  servingSize      String?
-  countryOfOrigin  String?
-  brand            String?          // who makes it
-  manufacturer     String?          // who manufactures it
-  barcodeNumber    String?          @unique
-  ingredientList   String?
-  nutritionalInfo  String?
-  imageUrl         String?
-  type             String?          // Drugs, food, supplement
+  servingSize      String? @map("serving_size")
+  countryOfOrigin  String? @map("country_of_origin")
+  brand            String? // who makes it
+  manufacturer     String? // who manufactures it
+  /// DB column is `barcode`; UNIQUE index is `products_barcode_key` — reused so no destructive index swap.
+  barcodeNumber    String? @unique(map: "products_barcode_key") @map("barcode")
+  ingredientList   String? @map("ingredients")
+  /// DB column is JSONB; we read/write as a stringified JSON in app code (see app/api/products/route.ts).
+  nutritionalInfo  String? @map("nutritional_info")
+  imageUrl         String? @map("image_url")
+  type             String? // Drugs, food, supplement
+  /// FDA-flagged product (existing column on DB; previously absent from schema).
+  fda              Boolean @default(false)
   /// Last successful external barcode→product resolution (Go-UPC, Barcode Lookup, OFF, etc.)
-  lastExternalResolutionAt DateTime?
+  lastExternalResolutionAt DateTime? @map("last_external_resolution_at")
   /// e.g. upc-database | rapid-barcode | openfoodfacts | merged
-  externalResolutionSource  String?
+  externalResolutionSource String?   @map("external_resolution_source")
 
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
   scanHistory      ScanHistory[]
