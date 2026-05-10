@@ -1,3 +1,10 @@
+/**
+ * PUT /api/users/:id/conditions/:conditionId — `{ conditionName?, diagnosedAt? }` (strict). `200` `{ success: true }` or `404`.
+ *
+ * DELETE — remove condition row. `200` / `404`.
+ *
+ * Session + ownership required.
+ */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';

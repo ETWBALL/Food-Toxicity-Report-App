@@ -1,3 +1,14 @@
+/**
+ * POST /api/auth/login
+ *
+ * Signs in with email + password. Issues access + refresh JWTs and applies httpOnly cookies (same token pair is also returned in JSON for mobile/API clients).
+ *
+ * Body (JSON): `{ "email": string, "password": string }`
+ *
+ * Success `200`: `{ accessToken, refreshToken, user }` — `user` is the public-safe shape from `serializeUser`.
+ *
+ * Errors: `400` invalid JSON, validation issues, or invalid credentials (generic message).
+ */
 import { NextResponse } from 'next/server';
 import { applyAuthCookies } from '@/lib/auth/cookies';
 import { verifyPassword } from '@/lib/auth/password';

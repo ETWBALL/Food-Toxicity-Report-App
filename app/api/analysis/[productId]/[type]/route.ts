@@ -1,10 +1,18 @@
+/**
+ * GET /api/analysis/:productId/:type
+ *
+ * Legacy endpoint: reads one row from SQL table `ai_analysis_cache` (created by `ensureApiTables`). Requires session — not a public cache.
+ *
+ * Params: numeric `productId`, `type` string matching `analysis_type` in the cache.
+ *
+ * Success `200`: cached row; `400` bad id; `404` no cache row.
+ */
 import { requireAuth } from '@/lib/auth/proxy';
 import { ensureApiTables, sql } from '../../../_lib/db';
 import { badRequest, notFound, ok, parseId } from '../../../_lib/http';
 
 export const dynamic = 'force-dynamic';
 
-/** Legacy SQL-backed cache; requires login so cached rows are not world-readable. */
 export async function GET(req: Request, { params }: { params: { productId: string; type: string } }) {
   return requireAuth(req, async () => {
     await ensureApiTables();

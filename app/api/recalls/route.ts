@@ -1,3 +1,12 @@
+/**
+ * GET /api/recalls
+ *
+ * Paginated global recall listing (public).
+ *
+ * Query: `severity`, `issuingAuthority`, `includeInactive=true` (default lists `active: true` only), `limit` (default 50, max 200), `offset`.
+ *
+ * Success `200`: `{ total, limit, offset, recalls }`.
+ */
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { ok } from '../_lib/http';

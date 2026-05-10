@@ -1,36 +1,129 @@
-# Next.js + PostgreSQL Auth Starter
+# Food Toxicity / Safety Report App
 
-This is a [Next.js](https://nextjs.org/) starter kit that uses [NextAuth.js](https://next-auth.js.org/) for simple email + password login, [Drizzle](https://orm.drizzle.team) as the ORM, and a [Neon Postgres](https://vercel.com/postgres) database to persist the data.
+A **Next.js 14** application that helps users assess food and product safety using **barcode or product name**, combining **open data** (Open Food Facts, openFDA recalls and adverse events, news) with **optional AI analysis** (Featherless / Llama-class models). Users authenticate with **email and password** or **guest mode**; sessions use **JWT access + refresh tokens** in **httpOnly cookies**.
 
-## Deploy Your Own
+Core flows:
 
-You can clone & deploy it to Vercel with one click:
+- **POST `/api/reports`** — Full orchestrated pipeline: aggregates external signals, scores risk, persists a `SafetyReport`.
+- **POST `/api/analysis/generate`** — Refines an existing report with structured AI output and syncs linked scan scores when present.
+- **POST `/api/users/:id/scans`** — Lightweight per-scan flow with deterministic scoring, recalls, allergy/drug hints, and a short AI summary.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?demo-title=Next.js%20Prisma%20PostgreSQL%20Auth%20Starter&demo-description=Simple%20Next.js%2013%20starter%20kit%20that%20uses%20Next-Auth%20for%20auth%20and%20Prisma%20PostgreSQL%20as%20a%20database.&demo-url=https%3A%2F%2Fnextjs-postgres-auth.vercel.app%2F&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F7rsVQ1ZBSiWe9JGO6FUeZZ%2F210cba91036ca912b2770e0bd5d6cc5d%2Fthumbnail.png&project-name=Next.js%%20Prisma%20PostgreSQL%20Auth%20Starter&repository-name=nextjs-postgres-auth-starter&repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fnextjs-postgres-auth-starter&from=templates&skippable-integrations=1&env=AUTH_SECRET&envDescription=Generate%20a%20random%20secret%3A&envLink=https://generate-secret.vercel.app/&stores=%5B%7B"type"%3A"postgres"%7D%5D)
+---
 
-## Developing Locally
+## Tech stack
 
-You can clone & create this repo with the following command
+| Layer | Choice |
+|--------|--------|
+| Framework | Next.js (App Router), React 18 |
+| Database | PostgreSQL (e.g. Neon) via **Prisma** |
+| Auth | Custom JWT (**jose**), bcrypt passwords, **tokenVersion** invalidation |
+| Validation | **Zod** |
+| AI | Featherless OpenAI-compatible API (`FEATHERLESS_*` env vars) |
+
+---
+
+## Prerequisites
+
+- **Node.js 18+**
+- A **PostgreSQL** database URL
+- Optional API keys for external services (see `.env.example`)
+
+---
+
+## Setup
+
+### 1. Clone and install
 
 ```bash
-npx create-next-app nextjs-typescript-starter --example "https://github.com/vercel/nextjs-postgres-auth-starter"
+git clone <your-repo-url>
+cd Food-Toxicity-Report-App
+npm install
 ```
 
-## Getting Started
+### 2. Environment
 
-First, run the development server:
+Copy the example env file and fill in values:
 
 ```bash
-pnpm dev
+cp .env.example .env
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Minimum to run locally:
 
-## Learn More
+- **`POSTGRES_URL`** (or **`DATABASE_URL`**) — Postgres connection string
+- **`AUTH_SECRET`** — long random string for JWT signing
+- **`NEXTAUTH_URL`** — e.g. `http://localhost:3000`
 
-To learn more about Next.js, take a look at the following resources:
+For AI-powered analysis generation:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **`FEATHERLESS_API_KEY`** (and optionally **`FEATHERLESS_MODEL`**, **`FEATHERLESS_BASE_URL`**)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+For catalog write automation or CI:
+
+- **`INTERNAL_API_KEY`** — if set, `POST`/`PUT` `/api/products` require `Authorization: Bearer <key>`; otherwise a logged-in session is required.
+
+See **`.env.example`** for News, FDA, barcode, nutrition keys used by the report orchestrator.
+
+### 3. Database
+
+Generate the Prisma client and apply migrations:
+
+```bash
+npm run db:generate
+npm run db:migrate
+```
+
+(Or `npm run db:push` for prototyping without migration history.)
+
+### 4. Development server
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### 5. Useful scripts
+
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Next.js dev server (Turbopack) |
+| `npm run build` / `npm run start` | Production build & serve |
+| `npm run lint` | ESLint |
+| `npm test` | Vitest unit tests |
+| `npm run db:studio` | Prisma Studio GUI |
+
+---
+
+## API overview
+
+Every route handler under `app/api/**/route.ts` has a **file-level JSDoc block** describing methods, auth, JSON shapes, and status codes. Summary:
+
+| Area | Routes |
+|------|--------|
+| **Auth** | `POST /api/auth/register`, `login`, `guest`, `logout`, `refresh`; NextAuth catch‑all `/api/auth/*` |
+| **User** | `GET`/`PUT`/`DELETE /api/users/:id`; lists: `.../allergies`, `medications`, `conditions`, `reports`, `scans` |
+| **Scans** | `GET`/`POST /api/users/:id/scans`; `GET`/`DELETE /api/users/:id/scans/:scanId` |
+| **Reports** | `POST /api/reports`; `GET /api/reports/:reportId` |
+| **Analysis** | `POST /api/analysis/generate`; legacy `GET /api/analysis/:productId/:type` |
+| **Products** | `POST /api/products`; `GET`/`PUT /api/products/:id`; `GET /api/products/barcode/:barcodeNumber`; `GET /api/products/:id/recalls` |
+| **Recalls** | `GET /api/recalls`; `GET /api/recalls/:recallId`; `POST /api/recalls/check/:barcodeNumber` |
+
+**Authentication:** Most user endpoints expect cookies set by login/register/guest/refresh, or compatible Bearer usage where implemented. Send JSON with `Content-Type: application/json` unless noted.
+
+---
+
+## Deploy
+
+Deploy to Vercel, Railway, or any Node host that provides:
+
+- Environment variables from `.env.example`
+- A managed Postgres instance
+- `npm run build` then `npm run start`, with `npm run db:migrate:prod` (or your migration strategy) on release.
+
+---
+
+## Learn more
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Prisma Documentation](https://www.prisma.io/docs)

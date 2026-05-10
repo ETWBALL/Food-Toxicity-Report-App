@@ -1,3 +1,14 @@
+/**
+ * GET /api/products/:id/recalls
+ *
+ * Lists recalls linked to the product id and (when known) UPC substring matches on `affectedUpcCodes`.
+ *
+ * Query: `activeOnly` — default `true`; set `activeOnly=false` to include inactive recalls in the list (counts still expose `activeRecalls`).
+ *
+ * Success `200`: `{ productId, activeRecalls, recalls }` where `recalls` is Prisma `Recall` rows.
+ *
+ * `400` invalid product id.
+ */
 import { prisma } from '@/lib/prisma';
 import { badRequest, ok, parseId } from '../../../_lib/http';
 

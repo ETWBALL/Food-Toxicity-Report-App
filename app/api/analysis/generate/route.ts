@@ -1,3 +1,16 @@
+/**
+ * POST /api/analysis/generate
+ *
+ * Runs Featherless (OpenAI-compatible) chat over the safety prompts, parses structured JSON, updates the `SafetyReport` + linked `scan_history` scores when applicable.
+ *
+ * Body: `{ "reportId": number }` — must belong to the authenticated user.
+ *
+ * Query: `debug=1` includes `rawModelText` in the response (dev/prod caution).
+ *
+ * Success `200`: `{ success, report, ai: { scores, summary, ... } }`.
+ *
+ * Errors: `400` validation, `404` report/user, `502` parse/model failure, `500` missing `FEATHERLESS_API_KEY`.
+ */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { verdictFromScore } from '@/app/api/_lib/score';

@@ -1,3 +1,12 @@
+/**
+ * /api/users/:id — profile CRUD for the authenticated user only (`id` may be numeric DB id or `publicId` string).
+ *
+ * GET — Returns `{ ...serializeUser(caller) }` (`200`). `403` if `:id` does not match the session user.
+ *
+ * PUT — JSON body per `userUpdateSchema` (optional `name`, `email`, `country`, `avatarUrl`, `age`). `200` `{ success, user }`. `400` email taken / validation. `403` if `:id` mismatch.
+ *
+ * DELETE — Soft-deletes: sets `deletedAt`, rewrites email, bumps `tokenVersion`, clears cookies. `200` with message. `403` if mismatch.
+ */
 import { NextResponse } from 'next/server';
 import { clearAuthCookies } from '@/lib/auth/cookies';
 import { prisma } from '@/lib/prisma';

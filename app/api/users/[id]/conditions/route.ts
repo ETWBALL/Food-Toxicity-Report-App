@@ -1,3 +1,10 @@
+/**
+ * GET /api/users/:id/conditions — list `{ id, conditionName, name, diagnosedAt }[]`.
+ *
+ * POST — `{ conditionName, name?, diagnosedAt? }` (ISO-ish date string optional). `201` with row.
+ *
+ * Session + caller `:id` match required.
+ */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';

@@ -1,3 +1,10 @@
+/**
+ * GET /api/users/:id/allergies — list allergies `{ id, allergen, name, severity }[]`.
+ *
+ * POST /api/users/:id/allergies — body `{ allergen, name?, severity? }` (strict). Creates a row; `201` with created row.
+ *
+ * Auth: session required; `:id` must match caller. Errors: `401`, `403`, `400` validation.
+ */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';

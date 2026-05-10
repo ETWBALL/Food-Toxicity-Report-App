@@ -1,3 +1,12 @@
+/**
+ * GET /api/reports/:reportId
+ *
+ * Fetches one persisted safety report for the authenticated owner only.
+ *
+ * Query: `fields` — optional subset selector parsed by `parseReportFieldsQuery` (invalid sections → `400` with `allowedSections`).
+ *
+ * Success `200`: shaped report JSON from `buildSafetyReportResponse`. `403` other user’s report, `404` not found, `400` bad id.
+ */
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth/proxy';

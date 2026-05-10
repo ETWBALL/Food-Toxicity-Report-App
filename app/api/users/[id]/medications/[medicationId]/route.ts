@@ -1,3 +1,10 @@
+/**
+ * PUT /api/users/:id/medications/:medicationId — partial update `{ medicationName?, dosage?, frequency? }` (strict). At least one field; `200` `{ success: true }` or `404`.
+ *
+ * DELETE — removes the medication row for the caller; `200` / `404`.
+ *
+ * Auth + `:id` ownership required.
+ */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
