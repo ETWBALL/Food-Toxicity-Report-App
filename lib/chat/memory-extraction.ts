@@ -59,16 +59,18 @@ Bullets:`;
   if (bullets.length === 0) return 0;
 
   try {
-    await prisma.userMemory.createMany({
+    const result = await prisma.userMemory.createMany({
       data: bullets.map((content) => ({
         userId,
         kind: 'observation',
         content,
       })),
+      // Unique index on (user_id, content) silently drops re-extractions
+      // of the same canonical fact ("user has a peanut allergy").
+      skipDuplicates: true,
     });
+    return result.count;
   } catch {
     return 0;
   }
-
-  return bullets.length;
 }

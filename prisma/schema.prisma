@@ -237,6 +237,10 @@ model ChatMessage {
 
 /// DIY user-memory layer. Populated by post-message extraction; consumed by
 /// the chat prompt builder (keyword retrieval in v1, semantic in v2).
+///
+/// Unique on (userId, content) so re-extraction across turns doesn't bloat
+/// the table — the extraction LLM tends to re-emit the same canonical facts
+/// ("user has a peanut allergy") on every relevant turn.
 model UserMemory {
   id        Int      @id @default(autoincrement())
   userId    Int      @map("user_id")
@@ -246,6 +250,7 @@ model UserMemory {
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, content], map: "user_memories_user_id_content_key")
   @@index([userId, createdAt])
   @@map("user_memories")
 }
