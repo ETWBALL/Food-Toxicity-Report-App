@@ -1,6 +1,8 @@
 import { ensureApiTables, sql } from '../../_lib/db';
 import { badRequest, notFound, ok, parseId } from '../../_lib/http';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(_: Request, { params }: { params: { recallId: string } }) {
   await ensureApiTables();
   const recallId = parseId(params.recallId);

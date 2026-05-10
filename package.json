@@ -5,6 +5,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",
@@ -14,7 +16,6 @@
     "db:studio": "prisma studio",
     "db:status": "prisma migrate status",
     "db:format": "prisma format"
-
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -35,12 +36,14 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.16",
+    "dotenv": "^17.4.2",
     "drizzle-kit": "^0.20.14",
     "eslint": "8.56.0",
     "eslint-config-next": "^14.0.4",
     "postcss": "^8.4.32",
     "prisma": "^6.19.3",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.5"
   }
 }
