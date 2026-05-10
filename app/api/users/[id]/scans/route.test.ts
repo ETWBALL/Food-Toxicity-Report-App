@@ -296,6 +296,28 @@ describe('POST /api/users/:id/scans (8-step orchestration)', () => {
     expect(body.isPersonalized).toBe(true);
   });
 
+  it('drug-label fetches run in parallel and contribute to drugFlags', async () => {
+    authPasses();
+    setupHappyPath({
+      product: { id: 7, name: 'X', imageUrl: null, ingredientList: 'aspirin' },
+      medications: ['warfarin', 'lipitor'],
+    });
+    mockFetchDrugLabel.mockResolvedValueOnce({
+      drug_interactions: ['Aspirin — increases bleeding risk'],
+    });
+    mockFetchDrugLabel.mockResolvedValueOnce({
+      drug_interactions: ['Grapefruit — alters metabolism'],
+    });
+    const res = await callPost('42', { barcodeNumber: '0037600100694' });
+    expect(res.status).toBe(201);
+    expect(mockFetchDrugLabel).toHaveBeenCalledTimes(2);
+    const calls = mockFetchDrugLabel.mock.calls.map((c) => c[0]).sort();
+    expect(calls).toEqual(['lipitor', 'warfarin']);
+    const body = await res.json();
+    expect(body.drugFlags).toContain('warfarin × aspirin');
+    expect(body.safetyScore).toBe(80); // 100 - 20*1 (one drug match)
+  });
+
   it('cache miss + OFF hit upserts product before continuing', async () => {
     authPasses();
     mockPrisma.product.findUnique.mockResolvedValueOnce(null);

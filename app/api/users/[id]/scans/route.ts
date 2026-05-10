@@ -125,41 +125,45 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       );
     }
 
-    // Step 4: active recalls for this product
-    const activeRecalls = await prisma.recall.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { productId: product.id },
-          { affectedUpcCodes: { contains: barcodeNumber } },
-        ],
-      },
-      orderBy: [{ recallDate: 'desc' }],
-    });
+    // Steps 4-5-6: independent fan-out — recalls, allergens, medications.
+    const [activeRecalls, allergies, medications] = await Promise.all([
+      prisma.recall.findMany({
+        where: {
+          isActive: true,
+          OR: [
+            { productId: product.id },
+            { affectedUpcCodes: { contains: barcodeNumber } },
+          ],
+        },
+        orderBy: [{ recallDate: 'desc' }],
+      }),
+      prisma.userAllergy.findMany({
+        where: { userId: caller.id },
+        select: { allergen: true },
+      }),
+      prisma.userMedication.findMany({
+        where: { userId: caller.id },
+        select: { medicationName: true },
+      }),
+    ]);
+
     const recallActive = activeRecalls.length > 0;
     const recallSeverity = worstSeverity(activeRecalls.map((r) => r.severityLevel));
     const officialRecallUrl = activeRecalls[0]?.officialRecallUrl ?? null;
 
-    // Step 5: allergen cross-reference
-    const allergies = await prisma.userAllergy.findMany({
-      where: { userId: caller.id },
-      select: { allergen: true },
-    });
     const allergyFlags = detectAllergyFlags(
       allergies.map((a) => a.allergen),
       product.ingredientList,
     );
 
-    // Step 6: drug interaction check (one FDA call per medication)
-    const medications = await prisma.userMedication.findMany({
-      where: { userId: caller.id },
-      select: { medicationName: true },
-    });
-    const drugFlags: DrugFlag[] = [];
-    for (const med of medications) {
-      const label = await fetchDrugLabel(med.medicationName);
-      drugFlags.push(...detectDrugConflicts(med.medicationName, label, product.ingredientList));
-    }
+    // Drug-label fetches in parallel — a 3-medication user used to take ~3x
+    // sequential FDA round-trips before this; now bounded by the slowest one.
+    const drugLabels = await Promise.all(
+      medications.map((m) => fetchDrugLabel(m.medicationName)),
+    );
+    const drugFlags: DrugFlag[] = drugLabels.flatMap((label, i) =>
+      detectDrugConflicts(medications[i].medicationName, label, product.ingredientList),
+    );
 
     const userProfileExists = allergies.length + medications.length > 0;
 

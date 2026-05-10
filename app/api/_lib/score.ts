@@ -20,6 +20,16 @@ const CLASS_DEDUCTIONS: Record<string, number> = {
   'Class III': 10,
 };
 
+/**
+ * Caller responsibility — `recallSeverity` MUST be one of "Class I"/"II"/"III"
+ * for the deduction to fire. Health Canada feeds risk values as "1"|"2"|"3";
+ * the recall sync job must translate those before insert. Unknown / null
+ * severity falls through with no extra deduction (just the −50 base).
+ *
+ * Note: the SafetyReport schema also has a `severityLevel` field with a
+ * different vocabulary ("mild" | "moderate" | "severe" | "critical"). Don't
+ * blindly copy this Class string into that field without translation.
+ */
 export function computeScore(inputs: ScoreInputs): ScoreResult {
   let score = 100;
   let hardUnsafe = false;
