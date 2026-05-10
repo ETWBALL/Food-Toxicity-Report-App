@@ -1,33 +1,65 @@
-import { ensureApiTables, sql } from '../_lib/db';
-import { badRequest, ok } from '../_lib/http';
+import { z } from 'zod';
+import { prisma } from '@/lib/prisma';
+import { ok, validationError } from '../_lib/http';
+
+export const dynamic = 'force-dynamic';
+
+const PostProductSchema = z.object({
+  barcodeNumber: z.string().min(1),
+  name: z.string().min(1),
+  brand: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  manufacturer: z.string().nullable().optional(),
+  countryOfOrigin: z.string().nullable().optional(),
+  servingSize: z.string().nullable().optional(),
+  ingredientList: z.string().nullable().optional(),
+  nutritionalInfo: z.union([z.string(), z.record(z.string(), z.unknown())]).nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
+  type: z.string().nullable().optional(),
+});
 
 export async function POST(req: Request) {
-  await ensureApiTables();
-  const body = await req.json().catch(() => null);
-  if (!body?.barcode) return badRequest('barcode required');
-  const result = await sql`
-    INSERT INTO products (barcode, name, brand, ingredients, nutritional_info, image_url, type, fda)
-    VALUES (
-      ${body.barcode},
-      ${body.name || null},
-      ${body.brand || null},
-      ${body.ingredients || null},
-      ${body.nutritionalInfo ? JSON.stringify(body.nutritionalInfo) : null}::jsonb,
-      ${body.imageUrl || null},
-      ${body.type || null},
-      ${Boolean(body.fda)}
-    )
-    ON CONFLICT (barcode)
-    DO UPDATE SET
-      name = COALESCE(EXCLUDED.name, products.name),
-      brand = COALESCE(EXCLUDED.brand, products.brand),
-      ingredients = COALESCE(EXCLUDED.ingredients, products.ingredients),
-      nutritional_info = COALESCE(EXCLUDED.nutritional_info, products.nutritional_info),
-      image_url = COALESCE(EXCLUDED.image_url, products.image_url),
-      type = COALESCE(EXCLUDED.type, products.type),
-      fda = EXCLUDED.fda,
-      updated_at = NOW()
-    RETURNING *
-  `;
-  return ok(result[0], 201);
+  const raw = await req.json().catch(() => null);
+  const parsed = PostProductSchema.safeParse(raw);
+  if (!parsed.success) return validationError(parsed.error.issues);
+  const body = parsed.data;
+
+  const nutritionalInfo =
+    body.nutritionalInfo === undefined || body.nutritionalInfo === null
+      ? null
+      : typeof body.nutritionalInfo === 'string'
+        ? body.nutritionalInfo
+        : JSON.stringify(body.nutritionalInfo);
+
+  // Upsert by barcodeNumber for idempotency. Spec says 409 on duplicate;
+  // we deliberately upsert to keep seed/sync paths idempotent.
+  const product = await prisma.product.upsert({
+    where: { barcodeNumber: body.barcodeNumber },
+    update: {
+      name: body.name,
+      brand: body.brand ?? undefined,
+      description: body.description ?? undefined,
+      manufacturer: body.manufacturer ?? undefined,
+      countryOfOrigin: body.countryOfOrigin ?? undefined,
+      servingSize: body.servingSize ?? undefined,
+      ingredientList: body.ingredientList ?? undefined,
+      nutritionalInfo: nutritionalInfo ?? undefined,
+      imageUrl: body.imageUrl ?? undefined,
+      type: body.type ?? undefined,
+    },
+    create: {
+      barcodeNumber: body.barcodeNumber,
+      name: body.name,
+      brand: body.brand ?? null,
+      description: body.description ?? null,
+      manufacturer: body.manufacturer ?? null,
+      countryOfOrigin: body.countryOfOrigin ?? null,
+      servingSize: body.servingSize ?? null,
+      ingredientList: body.ingredientList ?? null,
+      nutritionalInfo,
+      imageUrl: body.imageUrl ?? null,
+      type: body.type ?? null,
+    },
+  });
+  return ok(product, 201);
 }

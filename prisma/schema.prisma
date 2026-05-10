@@ -1,39 +1,31 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql" 
-  url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
 }
 
 model User {
-  id             Int              @id @default(autoincrement())
-  publicId       String           @unique
-  name           String
-  email          String           @unique
-  passwordHash   String
-  country        String?
-  avatarUrl      String?
-  createdAt      DateTime         @default(now())
-  age            Int?
-  deletedAt      DateTime?
+  id            Int              @id @default(autoincrement())
+  publicId      String           @unique @map("public_id")
+  name          String
+  email         String           @unique
+  passwordHash  String           @map("password_hash")
+  country       String?
+  avatarUrl     String?          @map("avatar_url")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  age           Int?
+  deletedAt     DateTime?        @map("deleted_at")
   /// Increment to invalidate all outstanding JWT refresh/access families (logout).
-  tokenVersion   Int              @default(0)
-
-  // Relations
-  scanHistory    ScanHistory[]
-  medications    UserMedication[]
-  allergies      UserAllergy[]
-  conditions     UserCondition[]
-  notifications  Notification[]
-  safetyReports  SafetyReport[]
+  tokenVersion  Int              @default(0) @map("token_version")
+  notifications Notification[]
+  safetyReports SafetyReport[]
+  scanHistory   ScanHistory[]
+  allergies     UserAllergy[]
+  conditions    UserCondition[]
+  medications   UserMedication[]
 
   @@map("users")
 }
@@ -69,74 +61,69 @@ model Product {
 }
 
 model ScanHistory {
-  id            Int              @id @default(autoincrement())
-  userId        Int
-  productId     Int
-  scannedAt     DateTime         @default(now())
-  safetyScore   Int?             // 1-100, unique to the user
-  createdAt     DateTime         @default(now())
-
-  // Relations
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product       Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id            Int            @id @default(autoincrement())
+  userId        Int            @map("user_id")
+  productId     Int?           @map("product_id")
+  barcode       String?
+  score         Int?
+  verdict       String?
+  scannedAt     DateTime       @default(now()) @map("scanned_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
   safetyReports SafetyReport[]
+  product       Product?       @relation(fields: [productId], references: [id])
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("scan_history")
 }
 
 model Recall {
-  id                   Int              @id @default(autoincrement())
-  productId            Int
-  recallReason         String
-  recallDescription    String?          // longer explanation
-  severityLevel        String?          // class I, II, III (FDA)
-  recallDate           DateTime?
-  recallExpiryDate     DateTime?        // still ongoing or closed
-  isActive             Boolean          @default(true)
-
-  // who issued it
-  issuingAuthority     String?
-  officialRecallUrl    String?          // Link to FDA recall page
-  recallNumber         String?          // FDA assigns official recall numbers
-  affectedBatchNumbers String?          // specific lot/batch codes affected
-  affectedUpcCodes     String?          // specific barcodes affected
-
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-
-  // Relations
-  product              Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id                   Int            @id @default(autoincrement())
+  productId            Int?           @map("product_id")
+  barcode              String?
+  recallReason         String?        @map("recall_reason")
+  recallDescription    String?        @map("recall_description")
+  severityLevel        String?        @map("severity_level")
+  recallDate           DateTime?      @map("recall_date")
+  recallExpiryDate     DateTime?      @map("recall_expiry_date")
+  active               Boolean        @default(true)
+  source               String?        @default("FDA")
+  issuingAuthority     String?        @map("issuing_authority")
+  officialRecallUrl    String?        @map("official_recall_url")
+  recallNumber         String?        @map("recall_number")
+  affectedBatchNumbers String?        @map("affected_batch_numbers")
+  affectedUpcCodes     String?        @map("affected_upc_codes")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
   notifications        Notification[]
+  product              Product?       @relation(fields: [productId], references: [id])
 
   @@map("recalls")
 }
 
 model UserMedication {
-  id             Int              @id @default(autoincrement())
-  userId         Int
-  medicationName String           // e.g., "Metformin"
+  id             Int      @id @default(autoincrement())
+  userId         Int      @map("user_id")
+  name           String?
+  medicationName String?
   dosage         String?
-  frequency      String?          // e.g., once daily, twice daily
-  addedAt        DateTime         @default(now())
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-
-  // Relations
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  frequency      String?
+  addedAt        DateTime @default(now()) @map("added_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_medications")
 }
 
 model UserAllergy {
   id        Int      @id @default(autoincrement())
-  userId    Int
-  allergen  String   // e.g., "peanuts"
-  severity  String?  // mild, moderate, severe
-  addedAt   DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
+  userId    Int      @map("user_id")
+  name      String?
+  allergen  String?
+  severity  String?
+  addedAt   DateTime @default(now()) @map("added_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_allergies")
@@ -144,14 +131,13 @@ model UserAllergy {
 
 model UserCondition {
   id            Int       @id @default(autoincrement())
-  userId        Int
-  conditionName String    // e.g., "Type 2 Diabetes"
-  diagnosedAt   DateTime?
-  addedAt       DateTime  @default(now())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  // Relations
+  userId        Int       @map("user_id")
+  name          String?
+  conditionName String?
+  diagnosedAt   DateTime? @map("diagnosed_at")
+  addedAt       DateTime  @default(now()) @map("added_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_conditions")
@@ -159,85 +145,61 @@ model UserCondition {
 
 model Notification {
   id        Int      @id @default(autoincrement())
-  userId    Int      // who receives it
-
-  // what happened
-  type      String   // "recall", "drugInteraction"
-  message   String   // "Peanut Butter X has been recalled"
-
-  // what it's about
-  productId Int?
-  recallId  Int?
-
-  // status
-  isRead    Boolean  @default(false) // has user seen it
-  createdAt DateTime @default(now())
-
-  // Relations
+  userId    Int      @map("user_id")
+  type      String
+  message   String
+  productId Int?     @map("product_id")
+  recallId  Int?     @map("recall_id")
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+  product   Product? @relation(fields: [productId], references: [id])
+  recall    Recall?  @relation(fields: [recallId], references: [id])
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  recall    Recall?  @relation(fields: [recallId], references: [id], onDelete: SetNull)
 
   @@map("notifications")
 }
 
 model SafetyReport {
   id                   Int          @id @default(autoincrement())
-  scanId               Int?
-  userId               Int
-  productId            Int
-
-  // General info in the header
-  overallScore         Int?
-  reportDate           DateTime     @default(now()) // when was the report generated
-
-  // Scores breakdown
+  scanId               Int?         @map("scan_id")
+  userId               Int          @map("user_id")
+  productId            Int?         @map("product_id")
+  score                Int?         @map("score")
+  verdict              String?      @map("verdict")
+  overallScore         Int?         @map("overall_score")
+  reportDate           DateTime     @default(now()) @map("report_date")
   allergenScore        Int?
-  toxicityScore        Int?         // Fixed typo from 'toxicityScoree'
+  toxicityScore        Int?
   recallScore          Int?
   drugInteractionScore Int?
-  adverseEventScore    Int?         // Based on FDA CAERS data
-
-  // Reactions - symptoms
-  knownReactions       String?      // vomiting, diarrhoea
-  potentialHarms       String?      // AI generated harm summary
-
-  // FLAGS - what triggered warnings
-  allergenFlags        String?      // which allergens matched user profile
-  drugFlags            String?      // drug interactions found
-  toxicityFlags        String?      // toxic ingredients found
-
-  // OUTCOMES - how serious
-  severityLevel        String?      // mild, moderate, severe, critical
-  isPersonalized       Boolean      @default(false) // was this scored against a user profile
-
-  // FDA adverse event data
-  fdaReportCount       Int?         // how many adverse events reported for this product
-  fdaReactionSummary   String?      // most common reactions from CAERS database
-
-  nutritionalScore     Int?         // 0-100
+  adverseEventScore    Int?
+  knownReactions       String?
+  potentialHarms       Json?        @map("potential_harms")
+  allergenFlags        String?
+  drugFlags            String?
+  toxicityFlags        String?
+  severityLevel        String?
+  isPersonalized       Boolean      @default(false)
+  fdaReportCount       Int?
+  fdaReactionSummary   String?
+  nutritionalScore     Int?
   calories             Int?
-  sugarLevel           String?      // low, moderate, high
-  sodiumLevel          String?      // low, moderate, high
-  saturatedFatLevel    String?      // low, moderate, high
-  proteinLevel         String?      // low, moderate, high
-  fiberLevel           String?      // low, moderate, high
-
-  nutritionalFlags     String?      // "high sugar - risk for diabetics"
-  nutritionalSummary   String?      // AI generated plain english summary
-  dailyValueWarnings   String?      // exceeds recommended daily intake for X, Y
-
-  // personalized against user conditions
+  sugarLevel           String?
+  sodiumLevel          String?
+  saturatedFatLevel    String?
+  proteinLevel         String?
+  fiberLevel           String?
+  nutritionalFlags     String?
+  nutritionalSummary   String?
+  dailyValueWarnings   String?
   conditionFlags       String?
   aiAnalysisSummary    String?
-
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
-
-  // Relations
-  scan                 ScanHistory? @relation(fields: [scanId], references: [id], onDelete: SetNull)
+  summary              String?
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+  product              Product?     @relation(fields: [productId], references: [id])
+  scan                 ScanHistory? @relation(fields: [scanId], references: [id])
   user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product              Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@map("safety_reports")
+  @@map("reports")
 }
