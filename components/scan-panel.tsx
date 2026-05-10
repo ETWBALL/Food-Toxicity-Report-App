@@ -233,14 +233,18 @@ export function ScanPanel({ onReportReady }: ScannerProps) {
 
       let report = json.report as SafetyReport;
 
-      // AI deepening
+      // AI deepening — retry once on 502 (model occasionally returns non-JSON)
       try {
-        await fetch('/api/analysis/generate', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reportId: report.id }),
-        });
+        const callAi = () =>
+          fetch('/api/analysis/generate', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reportId: report.id }),
+          });
+        let aiRes = await callAi();
+        if (aiRes.status === 502) aiRes = await callAi();
+
         const r2 = await fetch(`/api/reports/${report.id}`, { credentials: 'include' });
         if (r2.ok) {
           const j2 = await r2.json();

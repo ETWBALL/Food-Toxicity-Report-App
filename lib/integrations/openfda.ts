@@ -31,8 +31,57 @@ function keySuffix(): string {
   return openfdaKeyQuery();
 }
 
+function startsWithTerm(desc: string, term: string): boolean {
+  if (!desc || !term) return false;
+  // A real product recall usually leads with the product/brand name.
+  // Tolerate up to a short prefix (e.g. "The ", "Original ") before the term.
+  const head = desc.slice(0, Math.max(term.length + 16, 24));
+  return head.includes(term);
+}
+
+/**
+ * Keep only recalls that are HIGH-CONFIDENCE matches for the scanned product.
+ * FDA enforcement records' `product_description` is free-text — it commonly
+ * contains the search term as an INGREDIENT or BRANDING WORD inside a totally
+ * different product. We've observed:
+ *
+ *   "Ferrero Rocher, Ice-cream base, Hazelnut, Nutella, Penuts, Cacao..."
+ *     ← Nutella is listed as an ingredient of a Paradise Flavors frozen pouch.
+ *   "Chocolate & the Chip Original Nutella Cookie cake Cookie cakes 1LB 1.4oz"
+ *     ← Nutella is part of a cookie product NAME, not the Nutella jar itself.
+ *
+ * Both render terrifying recall warnings on the report when neither has any
+ * relation to the scanned barcode. Filter strictly:
+ *
+ *   - KEEP when `recalling_firm` matches the product brand (firm-level signal)
+ *   - KEEP when `product_description` HEADS with the brand (≈ "first 20 chars")
+ *   - drop everything else
+ *
+ * This is intentionally conservative: better to miss an obscure recall than
+ * to display a recall that isn't the user's product.
+ */
+function filterRelevantRecalls(
+  rows: OpenfdaRecallRow[],
+  searchTerm: string,
+  brand?: string,
+): OpenfdaRecallRow[] {
+  const term = searchTerm.toLowerCase().trim();
+  const brandLc = brand?.toLowerCase().trim() ?? '';
+  return rows.filter((r) => {
+    const desc = (r.product_description ?? '').toLowerCase();
+    const firm = (r.recalling_firm ?? '').toLowerCase();
+    if (brandLc && firm.includes(brandLc)) return true;
+    if (brandLc && startsWithTerm(desc, brandLc)) return true;
+    if (term && startsWithTerm(desc, term)) return true;
+    return false;
+  });
+}
+
 /** Food recalls (enforcement reports). Latest-first; narrow by product text when possible. */
-export async function fetchFoodRecalls(searchTerm: string): Promise<OpenfdaRecallRow[]> {
+export async function fetchFoodRecalls(
+  searchTerm: string,
+  brand?: string,
+): Promise<OpenfdaRecallRow[]> {
   const term = searchTerm.trim().slice(0, 80);
   if (!term) return [];
 
@@ -42,18 +91,24 @@ export async function fetchFoodRecalls(searchTerm: string): Promise<OpenfdaRecal
   const res = await fetchJson<{ results?: OpenfdaRecallRow[] }>(url, { timeoutMs: 14_000 });
   if (!res.ok || !res.data.results?.length) return [];
 
+  const relevant = filterRelevantRecalls(res.data.results, term, brand);
+  if (!relevant.length) return [];
+
   const since2025 = (d?: string) => {
     if (!d) return false;
     const y = Number(d.slice(0, 4));
     return y >= 2025;
   };
 
-  const recent = res.data.results.filter((r) => since2025(r.report_date || r.recall_initiation_date));
-  return recent.length ? recent : res.data.results.slice(0, 15);
+  const recent = relevant.filter((r) => since2025(r.report_date || r.recall_initiation_date));
+  return recent.length ? recent : relevant.slice(0, 15);
 }
 
 /** Drug/device recall enforcement (human drug recalls). */
-export async function fetchDrugRecalls(searchTerm: string): Promise<OpenfdaRecallRow[]> {
+export async function fetchDrugRecalls(
+  searchTerm: string,
+  brand?: string,
+): Promise<OpenfdaRecallRow[]> {
   const term = searchTerm.trim().slice(0, 80);
   if (!term) return [];
 
@@ -62,7 +117,9 @@ export async function fetchDrugRecalls(searchTerm: string): Promise<OpenfdaRecal
   const url = `${base}?search=${encodeURIComponent(search)}&limit=25&sort=report_date:desc${keySuffix()}`;
   const res = await fetchJson<{ results?: OpenfdaRecallRow[] }>(url, { timeoutMs: 14_000 });
   if (!res.ok || !res.data.results?.length) return [];
-  return res.data.results.slice(0, 15);
+
+  const relevant = filterRelevantRecalls(res.data.results, term, brand);
+  return relevant.slice(0, 15);
 }
 
 /** FAERS drug adverse events (latest slice). */

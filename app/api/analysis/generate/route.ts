@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { verdictFromScore } from '@/app/api/_lib/score';
+import { applyAllergenSafetyGuard } from '@/lib/analysis/apply-allergen-safety-guard';
 import { buildSafetyReportUpdateFromAi } from '@/lib/analysis/apply-ai-output';
 import { parseSafetyAiOutput } from '@/lib/analysis/parse-safety-ai-json';
 import { aiChat } from '@/lib/integrations/ai-chat';
@@ -103,7 +104,17 @@ export async function POST(req: Request) {
         );
       }
 
-      const updateData = buildSafetyReportUpdateFromAi(structured);
+      const aiUpdate = buildSafetyReportUpdateFromAi(structured);
+      // Safety failsafe: AI sometimes clears the allergen flag and returns an
+      // optimistic score even when an allergen is literally in the ingredient
+      // list (observed live: peanut butter scanned by peanut-allergic user
+      // came back as overallScore 97 / "Safe"). Re-check deterministically
+      // and clamp before persisting. Never trust the model alone here.
+      const updateData = applyAllergenSafetyGuard(
+        aiUpdate,
+        user.allergies,
+        existing.product?.ingredientList ?? null,
+      );
 
       const updated = await prisma.safetyReport.update({
         where: { id: reportId },
@@ -112,11 +123,15 @@ export async function POST(req: Request) {
       });
 
       if (updated.scanId != null) {
-        const v = verdictFromScore(structured.scores.overallScore);
+        const finalOverall =
+          typeof updateData.overallScore === 'number'
+            ? updateData.overallScore
+            : structured.scores.overallScore;
+        const v = verdictFromScore(finalOverall);
         await prisma.scanHistory.update({
           where: { id: updated.scanId },
           data: {
-            score: structured.scores.overallScore,
+            score: finalOverall,
             verdict: v ?? undefined,
           },
         });

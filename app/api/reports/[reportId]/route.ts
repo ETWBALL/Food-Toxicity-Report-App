@@ -23,6 +23,18 @@ export async function GET(req: Request, { params }: { params: { reportId: string
 
     const report = await prisma.safetyReport.findUnique({
       where: { id: reportId },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            barcodeNumber: true,
+            imageUrl: true,
+            type: true,
+            brand: true,
+          },
+        },
+      },
     });
     if (!report) return notFound('report not found');
     if (report.userId !== caller.id) {
@@ -43,7 +55,11 @@ export async function GET(req: Request, { params }: { params: { reportId: string
       );
     }
 
-    const body = buildSafetyReportResponse(report, parsed);
-    return NextResponse.json(body);
+    // Extract product so the response builder still receives a bare SafetyReport
+    // shape; product is always surfaced at the top level (UI header needs it
+    // regardless of which `?fields=` sections were requested).
+    const { product, ...reportRow } = report;
+    const body = buildSafetyReportResponse(reportRow, parsed);
+    return NextResponse.json({ ...body, product });
   });
 }
